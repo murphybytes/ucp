@@ -1,0 +1,13 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "c3/y100fSRx0ragV4ouOxub9TuY=",
+			"path": "github.com/murphybytes/udt.go",
+			"revision": "bb82fcd3c172fafb9bb28049605149eabf5fe462",
+			"revisionTime": "2016-05-29T17:51:56Z"
+		}
+	],
+	"rootPath": "github.com/murphybytes/ucp"
+}

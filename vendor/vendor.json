@@ -3,10 +3,35 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "c3/y100fSRx0ragV4ouOxub9TuY=",
+			"checksumSHA1": "5rPfda8jFccr3A6heL+JAmi9K9g=",
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "6cf5744a041a0022271cefed95ba843f6d87fd51",
+			"revisionTime": "2016-08-16T17:40:47Z"
+		},
+		{
+			"checksumSHA1": "y+y0K5hzrVImX9lh9/+KEDhrzXY=",
 			"path": "github.com/murphybytes/udt.go",
 			"revision": "bb82fcd3c172fafb9bb28049605149eabf5fe462",
-			"revisionTime": "2016-05-29T17:51:56Z"
+			"revisionTime": "2016-05-29T17:51:56Z",
+			"tree": true
+		},
+		{
+			"checksumSHA1": "LuFv4/jlrmFNnDb/5SCSEPAM9vU=",
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
+			"revisionTime": "2016-01-10T10:55:54Z"
+		},
+		{
+			"checksumSHA1": "iydUphwYqZRq3WhstEdGsbvBAKs=",
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "d77da356e56a7428ad25149ca77381849a6a5232",
+			"revisionTime": "2016-06-15T09:26:46Z"
+		},
+		{
+			"checksumSHA1": "jSmaEDZqd+WlMOGq/vAahXstllU=",
+			"path": "github.com/zerovm/udt",
+			"revision": "8e9727e7123216d99bf993970ee2c4798587a17e",
+			"revisionTime": "2013-10-25T12:55:14Z"
 		}
 	],
 	"rootPath": "github.com/murphybytes/ucp"

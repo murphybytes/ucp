@@ -14,6 +14,11 @@ build_recv:
 build_udt:
 	git submodule update --init; cd $(UDTDIR); make clean; make -e os=$(OS) arch=$(ARCH)
 
-all: build_udt build_server build_recv build_send 
+test_net:
+	go test -v github.com/murphybytes/ucp/net
 
-.PHONY: build_udt build_server
+test: test_net
+
+all: build_udt build_server build_recv build_send
+
+.PHONY: build_udt build_server all test test_net

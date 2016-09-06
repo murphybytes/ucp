@@ -51,7 +51,7 @@ func compareChecksum(packet []byte) (e error) {
 
 	checksum := md5.Sum(packet[headerSize:])
 
-	comp := bytes.Compare(checksum[0:], packet[4:4+md5.Size])
+	comp := bytes.Compare(checksum[0:], packet[sizeHeaderSize:sizeHeaderSize+md5.Size])
 	if comp != 0 {
 		e = fmt.Errorf("Checksum comparison failed")
 		return

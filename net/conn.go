@@ -2,15 +2,18 @@ package net
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"crypto/md5"
 	"errors"
-	"fmt"
 	"io"
+
+	"github.com/murphybytes/ucp/crypto"
 )
 
 const readSize = 1500
 
 var ErrInvalidChecksum = errors.New("Invalid checksum")
+var ErrIncompleteWrite = errors.New("Incomplete  write")
 
 type Conn interface {
 	Write(b []byte) (int, error)
@@ -29,8 +32,9 @@ func NewReaderWriter(conn io.ReadWriteCloser) (w *ReaderWriter) {
 }
 
 func (w *ReaderWriter) Write(buffer []byte) (n int, e error) {
+
 	var packet []byte
-	if packet, e = buildPacket(buffer); e != nil {
+	if packet, e = prependHeaderToBuffer(buffer); e != nil {
 		return
 	}
 
@@ -38,13 +42,14 @@ func (w *ReaderWriter) Write(buffer []byte) (n int, e error) {
 		return
 	}
 
-	n -= headerSize
-
-	if n != len(buffer) {
-		e = fmt.Errorf("Incomplete write. Wrote %d, expected %d\n", n, len(buffer))
+	if n != len(packet) {
+		e = ErrIncompleteWrite
 	}
 
+	n -= headerLen
+
 	return
+
 }
 
 func (w *ReaderWriter) Close() error {
@@ -53,15 +58,15 @@ func (w *ReaderWriter) Close() error {
 
 func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
 	buff := make([]byte, readSize)
-	var r int
-	r, e = w.conn.Read(buff)
+	var read int
+	read, e = w.conn.Read(buff)
 
 	if e != nil && e != io.EOF {
 		return
 	}
 
-	if r == 0 {
-		return r, io.EOF
+	if read == 0 {
+		return read, io.EOF
 	}
 
 	var size int
@@ -69,19 +74,20 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
 		return
 	}
 
-	expectedChecksum := buff[sizeHeaderSize : sizeHeaderSize+md5.Size]
+	var expectedChecksum [checksumHeaderLen]byte
+	copy(expectedChecksum[:], buff[sizeHeaderLen:sizeHeaderLen+checksumHeaderLen])
 
-	out.Write(buff[headerSize : r-headerSize])
+	out.Write(buff[headerLen:read])
 	n = out.Len()
 
 	for n < size {
-		r, e = w.conn.Read(buff)
+		read, e = w.conn.Read(buff)
 		if e != nil && e != io.EOF {
 			return
 		}
 
-		out.Write(buff[0:r])
-		n += r
+		out.Write(buff[0:read])
+		n += read
 
 		if e == io.EOF {
 			break
@@ -90,9 +96,43 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
 	}
 
 	actualChecksum := md5.Sum(out.Bytes())
-	if bytes.Compare(expectedChecksum[:], actualChecksum[:]) != 0 {
+
+	if !bytes.Equal(expectedChecksum[0:], actualChecksum[0:]) {
 		e = ErrInvalidChecksum
 	}
 
 	return out.Len(), e
+}
+
+type CryptoReaderWriter struct {
+	readerWriter         *ReaderWriter
+	block                cipher.Block
+	initializationVector []byte
+}
+
+func NewCryptoReaderWriter(block cipher.Block, initializationVector []byte, readerWriter *ReaderWriter) (rw *CryptoReaderWriter) {
+	return &CryptoReaderWriter{
+		readerWriter:         readerWriter,
+		initializationVector: initializationVector,
+	}
+}
+
+func (crw *CryptoReaderWriter) Close() error {
+	return crw.readerWriter.Close()
+}
+
+func (crw *CryptoReaderWriter) Read(buff *bytes.Buffer) (n int, e error) {
+	var encrypted bytes.Buffer
+	if n, e = crw.readerWriter.Read(&encrypted); e != nil {
+		return
+	}
+
+	decrypted := crypto.DecryptAES(crw.block, crw.initializationVector, encrypted.Bytes())
+	buff.Write(decrypted)
+	return
+}
+
+func (crw *CryptoReaderWriter) Write(buff []byte) (n int, e error) {
+	encrypted := crypto.EncryptAES(crw.block, crw.initializationVector, buff)
+	return crw.readerWriter.Write(encrypted)
 }

@@ -1,6 +1,7 @@
 package net
 
 import (
+	"bytes"
 	"crypto/rand"
 	"testing"
 
@@ -21,10 +22,9 @@ func (m *mockConn) Write(buffer []byte) (n int, e error) {
 
 func (m *mockConn) Read(buffer []byte) (n int, e error) {
 	n = copy(buffer, m.buffer)
-	if len(buffer) <= len(m.buffer) {
+
+	if len(m.buffer) > len(buffer) {
 		m.buffer = m.buffer[n:]
-	} else {
-		m.buffer = []byte{}
 	}
 
 	return
@@ -48,12 +48,12 @@ func (s *ConnTestSuite) SetupTest() {
 }
 
 func createPacket(buff []byte) (p []byte) {
-	p, _ = buildPacket(buff)
+	p, _ = prependHeaderToBuffer(buff)
 	return
 }
 
 func (s *ConnTestSuite) TestWriter() {
-	buffer := make([]byte, 100)
+	buffer := make([]byte, 50)
 	rand.Read(buffer)
 	toSend := createPacket(buffer)
 
@@ -69,6 +69,39 @@ func (s *ConnTestSuite) TestWriter() {
 	s.Nil(e)
 	s.Equal(len(buffer), n)
 	s.m.AssertExpectations(s.T())
+
+}
+
+func (s *ConnTestSuite) TestReader() {
+	buffer := make([]byte, 3600)
+	readBuffer := make([]byte, readSize)
+
+	var reader bytes.Buffer
+
+	rand.Read(buffer)
+	send := createPacket(buffer)
+	s.m.On(
+		"Write",
+		send,
+	).Return(
+		len(send),
+		nil,
+	)
+
+	s.m.On(
+		"Read",
+		readBuffer,
+	).Return(
+		len(buffer),
+		nil,
+	)
+
+	s.writer.Write(buffer)
+	n, e := s.writer.Read(&reader)
+	s.Nil(e)
+	s.Equal(len(buffer), reader.Len())
+	s.Equal(len(buffer), n)
+	s.Equal(0, bytes.Compare(buffer, reader.Bytes()))
 
 }
 

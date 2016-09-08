@@ -7,18 +7,21 @@ import (
 	"fmt"
 )
 
-const sizeHeaderSize = 4
-const headerSize = sizeHeaderSize + md5.Size
+const maxBufferLen = 0x7FFFFFFF
 
-func buildPacket(buffer []byte) (b []byte, e error) {
+const sizeHeaderLen = 8
+const checksumHeaderLen = md5.Size
+const headerLen = sizeHeaderLen + checksumHeaderLen
+
+func prependHeaderToBuffer(buffer []byte) (b []byte, e error) {
 	var sizeHeader []byte
-	if sizeHeader, e = getSizeHeader(buffer); e != nil {
+	if sizeHeader, e = createSizeHeader(buffer); e != nil {
 		return
 	}
 
-	checkSum := getChecksum(buffer)
+	checkSum := createChecksum(buffer)
 
-	b = make([]byte, 0, len(buffer)+sizeHeaderSize+md5.Size)
+	b = make([]byte, 0, len(buffer)+sizeHeaderLen+md5.Size)
 	b = append(b, sizeHeader...)
 	b = append(b, checkSum[0:]...)
 	b = append(b, buffer...)
@@ -26,9 +29,9 @@ func buildPacket(buffer []byte) (b []byte, e error) {
 	return
 }
 
-func getSizeHeader(buffer []byte) (h []byte, e error) {
-	var size uint32
-	size = uint32(len(buffer))
+func createSizeHeader(buffer []byte) (h []byte, e error) {
+	var size uint64
+	size = uint64(len(buffer))
 	var buff bytes.Buffer
 	if e = binary.Write(&buff, binary.LittleEndian, size); e != nil {
 		return
@@ -38,34 +41,18 @@ func getSizeHeader(buffer []byte) (h []byte, e error) {
 	return
 }
 
-func getChecksum(buffer []byte) (s [md5.Size]byte) {
+func createChecksum(buffer []byte) (s [md5.Size]byte) {
 	s = md5.Sum(buffer)
 	return
 
 }
 
-func compareChecksum(packet []byte) (e error) {
-	if len(packet) < headerSize {
-		return fmt.Errorf("Malformed packet")
-	}
-
-	checksum := md5.Sum(packet[headerSize:])
-
-	comp := bytes.Compare(checksum[0:], packet[sizeHeaderSize:sizeHeaderSize+md5.Size])
-	if comp != 0 {
-		e = fmt.Errorf("Checksum comparison failed")
-		return
-	}
-
-	return
-}
-
 func getBufferSize(buffer []byte) (s int, e error) {
-	if len(buffer) < headerSize {
+	if len(buffer) < headerLen {
 		e = fmt.Errorf("Malformed header")
 		return
 	}
-	buf := bytes.NewReader(buffer[0:sizeHeaderSize])
+	buf := bytes.NewReader(buffer[0:sizeHeaderLen])
 	var i uint32
 	if e = binary.Read(buf, binary.LittleEndian, &i); e != nil {
 		return
@@ -77,11 +64,11 @@ func getBufferSize(buffer []byte) (s int, e error) {
 }
 
 func getDataPacket(buffer []byte) (data []byte, e error) {
-	if len(buffer) < headerSize {
+	if len(buffer) < headerLen {
 		e = fmt.Errorf("Malformed header")
 		return
 	}
 
-	data = buffer[headerSize:]
+	data = buffer[headerLen:]
 	return
 }

@@ -17,8 +17,11 @@ build_udt:
 test_net:
 	go test -v github.com/murphybytes/ucp/net
 
-test: test_net
+test_crypto:
+	go test -v github.com/murphybytes/ucp/crypto
+
+test: test_net test_crypto
 
 all: build_udt build_server build_recv build_send
 
-.PHONY: build_udt build_server all test test_net
+.PHONY: build_udt build_server all test test_net test_crypto

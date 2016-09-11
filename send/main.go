@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/murphybytes/ucp/client"
+)
 
 func main() {
-	fmt.Println("Send")
+	fmt.Println(client.UCPDirectory)
 }

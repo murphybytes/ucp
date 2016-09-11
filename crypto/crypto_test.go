@@ -61,7 +61,7 @@ func TestEncryption(t *testing.T) {
 	publicKeyPath := fmt.Sprint(testdir, "/id_rsa.pub")
 	privateKeyPath := fmt.Sprint(testdir, "/private.pem")
 
-	if err = ucpKeyGenerate(privateKeyPath, publicKeyPath); err != nil {
+	if err = UcpKeyGenerate(privateKeyPath, publicKeyPath); err != nil {
 		t.Fatal("Key generation failed -", err.Error())
 	}
 
@@ -103,7 +103,7 @@ func TestEncryptionWithMarshalling(t *testing.T) {
 	publicKeyPath := fmt.Sprint(testdir, "/id_rsa.pub")
 	privateKeyPath := fmt.Sprint(testdir, "/private.pem")
 
-	if err = ucpKeyGenerate(privateKeyPath, publicKeyPath); err != nil {
+	if err = UcpKeyGenerate(privateKeyPath, publicKeyPath); err != nil {
 		t.Fatal("Key generation failed -", err.Error())
 	}
 

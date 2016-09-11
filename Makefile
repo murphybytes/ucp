@@ -8,6 +8,15 @@ build_server:
 build_send:
 	go build -o usend github.com/murphybytes/ucp/send; mv usend $(GOPATH)/bin
 
+test_send:
+	go test -v github.com/murphybytes/ucp/send
+
+test_recv:
+	go test -v github.com/murphybytes/ucp/recv
+
+test_client:
+	go test -v github.com/murphybytes/ucp/client
+
 build_recv:
 	go build -o urecv github.com/murphybytes/ucp/recv; mv urecv $(GOPATH)/bin
 
@@ -20,8 +29,8 @@ test_net:
 test_crypto:
 	go test -v github.com/murphybytes/ucp/crypto
 
-test: test_net test_crypto
+test: test_net test_crypto test_send test_recv test_client 
 
 all: build_udt build_server build_recv build_send
 
-.PHONY: build_udt build_server all test test_net test_crypto
+.PHONY: build_udt build_server all test test_net test_crypto test_send test_recv test_client

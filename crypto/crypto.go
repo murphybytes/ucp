@@ -27,7 +27,7 @@ const (
 )
 
 // generates public/private keys and write each to file
-func ucpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {
+func UcpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {
 	var privateKey *rsa.PrivateKey
 
 	if privateKey, e = rsa.GenerateKey(rand.Reader, KeySize); e != nil {

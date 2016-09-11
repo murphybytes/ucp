@@ -2,9 +2,11 @@ package net
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"crypto/rand"
 	"testing"
 
+	"github.com/murphybytes/ucp/crypto"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -28,6 +30,7 @@ func (m *mockConn) Read(buffer []byte) (n int, e error) {
 	}
 
 	return
+
 }
 
 func (m *mockConn) Close() error {
@@ -38,7 +41,8 @@ func (m *mockConn) Close() error {
 type ConnTestSuite struct {
 	suite.Suite
 	writer Conn
-	m      *mockConn
+
+	m *mockConn
 }
 
 func (s *ConnTestSuite) SetupTest() {
@@ -80,6 +84,8 @@ func (s *ConnTestSuite) TestReader() {
 
 	rand.Read(buffer)
 	send := createPacket(buffer)
+	copy(readBuffer, send)
+
 	s.m.On(
 		"Write",
 		send,
@@ -88,23 +94,99 @@ func (s *ConnTestSuite) TestReader() {
 		nil,
 	)
 
-	s.m.On(
-		"Read",
-		readBuffer,
-	).Return(
-		len(buffer),
-		nil,
-	)
-
 	s.writer.Write(buffer)
-	n, e := s.writer.Read(&reader)
+	e := s.writer.Read(&reader)
 	s.Nil(e)
 	s.Equal(len(buffer), reader.Len())
-	s.Equal(len(buffer), n)
 	s.Equal(0, bytes.Compare(buffer, reader.Bytes()))
 
 }
 
 func TestRunConnTestSuite(t *testing.T) {
 	suite.Run(t, new(ConnTestSuite))
+}
+
+type mockReaderWriter struct {
+	mock.Mock
+	buffer []byte
+}
+
+func (m *mockReaderWriter) Write(buffer []byte) (n int, e error) {
+	m.buffer = buffer
+	return len(buffer), nil
+}
+
+func (m *mockReaderWriter) Read(buff *bytes.Buffer) (e error) {
+	buff.Write(m.buffer)
+	return nil
+}
+
+func (m *mockReaderWriter) Close() (e error) {
+	args := m.Called()
+	return args.Error(0)
+}
+
+type EncryptorTestSuite struct {
+	suite.Suite
+	m                     *mockReaderWriter
+	encryptedReaderWriter Conn
+	block                 cipher.Block
+	iv                    []byte
+}
+
+func (s *EncryptorTestSuite) SetupTest() {
+	s.m = new(mockReaderWriter)
+	s.iv = make([]byte, crypto.IVBlockSize)
+	rand.Read(s.iv)
+	s.block, _ = crypto.NewCipherBlock()
+	s.encryptedReaderWriter = NewCryptoReaderWriter(s.block, s.iv, s.m)
+
+}
+
+func (s *EncryptorTestSuite) TestEncryptedReadAndWrite() {
+	inbuff := []byte("I am some text")
+
+	var outbuff bytes.Buffer
+
+	n, e := s.encryptedReaderWriter.Write(inbuff)
+	s.Nil(e)
+	s.Equal(len(inbuff), n)
+
+	expected := crypto.EncryptAES(s.block, s.iv, inbuff)
+	s.Equal(string(expected), string(s.m.buffer))
+
+	e = s.encryptedReaderWriter.Read(&outbuff)
+	s.Nil(e)
+	s.Equal("I am some text", string(outbuff.Bytes()))
+
+}
+
+func (s *EncryptorTestSuite) TestGobEncodedReadAndWrite() {
+	expected := struct {
+		Question string
+		Answer   int
+	}{
+		Question: "What is the Answer to everything?",
+		Answer:   42,
+	}
+
+	rw := NewGobEncoderReaderWriter(s.encryptedReaderWriter)
+
+	e := rw.Write(expected)
+	s.Nil(e)
+
+	actual := struct {
+		Question string
+		Answer   int
+	}{}
+
+	e = rw.Read(&actual)
+	s.Nil(e)
+	s.Equal(expected.Answer, actual.Answer)
+	s.Equal(expected.Question, actual.Question)
+
+}
+
+func TestRunEncryptorTestSuite(t *testing.T) {
+	suite.Run(t, new(EncryptorTestSuite))
 }

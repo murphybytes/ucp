@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"crypto/md5"
+	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/murphybytes/ucp/crypto"
@@ -15,12 +17,14 @@ const readSize = 1500
 var ErrInvalidChecksum = errors.New("Invalid checksum")
 var ErrIncompleteWrite = errors.New("Incomplete  write")
 
+// Conn io interface for ucp
 type Conn interface {
 	Write(b []byte) (int, error)
-	Close() error
-	Read(*bytes.Buffer) (int, error)
+	Read(*bytes.Buffer) error
 }
 
+// ReaderWriter reads and writes packets of bytes to network
+// bytes are prepended with size and checksum
 type ReaderWriter struct {
 	conn io.ReadWriteCloser
 }
@@ -31,6 +35,8 @@ func NewReaderWriter(conn io.ReadWriteCloser) (w *ReaderWriter) {
 	}
 }
 
+// Write writes buffer to network. Returns the number of bytes written
+// if successful, otherwise an error.
 func (w *ReaderWriter) Write(buffer []byte) (n int, e error) {
 
 	var packet []byte
@@ -52,11 +58,8 @@ func (w *ReaderWriter) Write(buffer []byte) (n int, e error) {
 
 }
 
-func (w *ReaderWriter) Close() error {
-	return w.conn.Close()
-}
-
-func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
+// Read reads bytes into bytes.Buffer
+func (w *ReaderWriter) Read(out *bytes.Buffer) (e error) {
 	buff := make([]byte, readSize)
 	var read int
 	read, e = w.conn.Read(buff)
@@ -66,7 +69,7 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
 	}
 
 	if read == 0 {
-		return read, io.EOF
+		return io.EOF
 	}
 
 	var size int
@@ -78,16 +81,15 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
 	copy(expectedChecksum[:], buff[sizeHeaderLen:sizeHeaderLen+checksumHeaderLen])
 
 	out.Write(buff[headerLen:read])
-	n = out.Len()
 
-	for n < size {
+	for out.Len() < size {
+		fmt.Println("read xxx")
 		read, e = w.conn.Read(buff)
 		if e != nil && e != io.EOF {
 			return
 		}
 
 		out.Write(buff[0:read])
-		n += read
 
 		if e == io.EOF {
 			break
@@ -101,29 +103,30 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (n int, e error) {
 		e = ErrInvalidChecksum
 	}
 
-	return out.Len(), e
+	return
 }
 
+// CryptoReaderWriter writes and reads bytes from network.  Bytes are
+// encrypted on the wire.
 type CryptoReaderWriter struct {
-	readerWriter         *ReaderWriter
+	readerWriter         Conn
 	block                cipher.Block
 	initializationVector []byte
 }
 
-func NewCryptoReaderWriter(block cipher.Block, initializationVector []byte, readerWriter *ReaderWriter) (rw *CryptoReaderWriter) {
+func NewCryptoReaderWriter(block cipher.Block, initializationVector []byte, conn Conn) (rw *CryptoReaderWriter) {
 	return &CryptoReaderWriter{
-		readerWriter:         readerWriter,
+		readerWriter:         conn,
 		initializationVector: initializationVector,
+		block:                block,
 	}
 }
 
-func (crw *CryptoReaderWriter) Close() error {
-	return crw.readerWriter.Close()
-}
-
-func (crw *CryptoReaderWriter) Read(buff *bytes.Buffer) (n int, e error) {
+// Read reads AES encrypted bytes from network, decrypted bytes are
+// returned in buff.
+func (crw *CryptoReaderWriter) Read(buff *bytes.Buffer) (e error) {
 	var encrypted bytes.Buffer
-	if n, e = crw.readerWriter.Read(&encrypted); e != nil {
+	if e = crw.readerWriter.Read(&encrypted); e != nil {
 		return
 	}
 
@@ -132,7 +135,55 @@ func (crw *CryptoReaderWriter) Read(buff *bytes.Buffer) (n int, e error) {
 	return
 }
 
+// Write writes and AES encrypts buff to network
 func (crw *CryptoReaderWriter) Write(buff []byte) (n int, e error) {
 	encrypted := crypto.EncryptAES(crw.block, crw.initializationVector, buff)
 	return crw.readerWriter.Write(encrypted)
+}
+
+// GobEncoderReaderWriter reads or writes Go typed data from
+// wire
+type GobEncoderReaderWriter struct {
+	readerWriter Conn
+}
+
+func NewGobEncoderReaderWriter(conn Conn) (rw *GobEncoderReaderWriter) {
+	return &GobEncoderReaderWriter{
+		readerWriter: conn,
+	}
+}
+
+// Write writes Go types to network
+func (g *GobEncoderReaderWriter) Write(v interface{}) (e error) {
+	var w bytes.Buffer
+	encoder := gob.NewEncoder(&w)
+	if e = encoder.Encode(v); e != nil {
+		return
+	}
+
+	var written int
+	if written, e = g.readerWriter.Write(w.Bytes()); e != nil {
+		return
+	}
+
+	if written != w.Len() {
+		e = ErrIncompleteWrite
+	}
+
+	return
+}
+
+// Read reads Go types from network
+func (g *GobEncoderReaderWriter) Read(v interface{}) (e error) {
+	var r bytes.Buffer
+	if e = g.readerWriter.Read(&r); e != nil {
+		return
+	}
+
+	decoder := gob.NewDecoder(&r)
+	if e = decoder.Decode(v); e != nil {
+		return
+	}
+
+	return
 }

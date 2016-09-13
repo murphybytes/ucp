@@ -21,10 +21,10 @@
 			"revisionTime": "2015-09-07T01:02:28Z"
 		},
 		{
-			"checksumSHA1": "y+y0K5hzrVImX9lh9/+KEDhrzXY=",
+			"checksumSHA1": "rY16Z4DaZHIrimetblHc/LAHD2E=",
 			"path": "github.com/murphybytes/udt.go",
-			"revision": "bb82fcd3c172fafb9bb28049605149eabf5fe462",
-			"revisionTime": "2016-05-29T17:51:56Z",
+			"revision": "cb502c84f1aef82136fd7888b14135d3418ee351",
+			"revisionTime": "2016-09-13T01:04:19Z",
 			"tree": true
 		},
 		{

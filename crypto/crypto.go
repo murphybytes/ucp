@@ -13,9 +13,11 @@ import (
 	"encoding/gob"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"hash"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 // Defines key sizes and initialization vector size for AES
@@ -25,6 +27,31 @@ const (
 	AESKeySize  = 32
 	KeySize     = 4096
 )
+
+// Sets up directory used by UCP
+func InitializeUcpDir(ucpdir string) (e error) {
+
+	_, err := os.Stat(ucpdir)
+
+	if err == nil {
+		var answer string
+		// dir exists prompt user
+		fmt.Print("UCP directory already exists. Do you want to overwrite it? Y/N ")
+		fmt.Scanln(&answer)
+		if answer != "Y" {
+			return
+		}
+	}
+
+	if e = os.MkdirAll(ucpdir, 0700); e != nil {
+		return
+	}
+
+	privateKeyPath := filepath.Join(ucpdir, "private-key.pem")
+	publicKeyPath := filepath.Join(ucpdir, "public-key")
+	e = UcpKeyGenerate(privateKeyPath, publicKeyPath)
+	return
+}
 
 // generates public/private keys and write each to file
 func UcpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {

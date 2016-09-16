@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"crypto/md5"
+	"crypto/rsa"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -104,6 +105,47 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (e error) {
 	}
 
 	return
+}
+
+// RSAReaderWriter reads and writes data that is encrypted using RSA
+type RSAReaderWriter struct {
+	publicKey    *rsa.PublicKey
+	privateKey   *rsa.PrivateKey
+	readerWriter Conn
+}
+
+// NewRSAReaderWriter creates RSAReaderWriter
+// publicKey - key of the entity I am sending message to
+// privateKey - my privateKey
+func NewRSAReaderWriter(publicKey *rsa.PublicKey, privateKey *rsa.PrivateKey, conn Conn) (rw *RSAReaderWriter) {
+	return &RSAReaderWriter{
+		publicKey:    publicKey,
+		privateKey:   privateKey,
+		readerWriter: conn,
+	}
+}
+
+func (rw *RSAReaderWriter) Read(buff *bytes.Buffer) (e error) {
+	var encrypted bytes.Buffer
+	if e = rw.readerWriter.Read(&encrypted); e != nil {
+		return
+	}
+	var decrypted []byte
+	if decrypted, e = crypto.DecryptOAEP(rw.privateKey, encrypted.Bytes()); e != nil {
+		return
+	}
+
+	buff.Write(decrypted)
+	return
+}
+
+func (rw *RSAReaderWriter) Write(buff []byte) (n int, e error) {
+	var encrypted []byte
+	if encrypted, e = crypto.EncryptOAEP(rw.publicKey, buff); e != nil {
+		return
+	}
+
+	return rw.readerWriter.Write(encrypted)
 }
 
 // CryptoReaderWriter writes and reads bytes from network.  Bytes are

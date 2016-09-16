@@ -1,14 +1,18 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/murphybytes/ucp/crypto"
+	unet "github.com/murphybytes/ucp/net"
 	"github.com/murphybytes/ucp/server/shared"
 	"github.com/murphybytes/udt.go/udt"
 )
@@ -56,7 +60,7 @@ func main() {
 			var conn net.Conn
 			if conn, err = listener.Accept(); err == nil {
 				// TODO: handle connection
-				handleConnection(conn)
+				go handleConnection(conn)
 			} else {
 				log.Println("Error accepting connection ", err)
 			}
@@ -68,5 +72,48 @@ func main() {
 }
 
 func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	privateKey, err := crypto.GetPrivateKey(filepath.Join(ucpDirectory, "private-key.pem"))
+	if err != nil {
+		log.Println("Can't fetch private key: ", err)
+	}
+
+	var async *unet.GobEncoderReaderWriter
+	if async, err = createAsynchEncryptionConnection(privateKey, conn); err != nil {
+		log.Println("ERROR: ", err)
+	}
+
+	random := make([]byte, 50)
+	rand.Read(random)
+	if err = async.Write(random); err != nil {
+		log.Println("ERROR: Write failed ", err)
+		return
+	}
+
+	var response []byte
+	if err = async.Read(&response); err != nil {
+		log.Println("ERROR: Read failed ", err)
+		return
+	}
+
+}
+
+func createAsynchEncryptionConnection(privateKey *rsa.PrivateKey, conn net.Conn) (async *unet.GobEncoderReaderWriter, e error) {
+	readerWriter := unet.NewReaderWriter(conn)
+	rw := unet.NewGobEncoderReaderWriter(readerWriter)
+
+	if e = rw.Write(privateKey.PublicKey); e != nil {
+		return
+	}
+
+	var clientPublicKey rsa.PublicKey
+	if e = rw.Read(&clientPublicKey); e != nil {
+		return
+	}
+
+	async = unet.NewGobEncoderReaderWriter(
+		unet.NewRSAReaderWriter(&clientPublicKey, privateKey, readerWriter),
+	)
+	return
 
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/rsa"
 	"testing"
 
 	"github.com/murphybytes/ucp/crypto"
@@ -189,4 +190,34 @@ func (s *EncryptorTestSuite) TestGobEncodedReadAndWrite() {
 
 func TestRunEncryptorTestSuite(t *testing.T) {
 	suite.Run(t, new(EncryptorTestSuite))
+}
+
+type RSAEncryptionTestSuite struct {
+	suite.Suite
+	rsaReaderWriter Conn
+	m               *mockReaderWriter
+}
+
+func (s *RSAEncryptionTestSuite) SetupTest() {
+	privateKey, _ := rsa.GenerateKey(rand.Reader, crypto.KeySize)
+
+	s.m = new(mockReaderWriter)
+
+	s.rsaReaderWriter = NewRSAReaderWriter(&privateKey.PublicKey, privateKey, s.m)
+}
+
+func (s *RSAEncryptionTestSuite) TestRSAEncryptedReadWrite() {
+	inbuff := []byte("Here are some words")
+	_, e := s.rsaReaderWriter.Write(inbuff)
+	s.Nil(e)
+	//	s.Equal(len(inbuff), n)
+
+	var outbuff bytes.Buffer
+	e = s.rsaReaderWriter.Read(&outbuff)
+	s.Nil(e)
+	s.True(bytes.Equal(inbuff, outbuff.Bytes()))
+}
+
+func TestRSAEncryptionTestSuiteTest(t *testing.T) {
+	suite.Run(t, new(RSAEncryptionTestSuite))
 }

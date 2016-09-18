@@ -68,6 +68,12 @@
 			"path": "github.com/zerovm/udt",
 			"revision": "8e9727e7123216d99bf993970ee2c4798587a17e",
 			"revisionTime": "2013-10-25T12:55:14Z"
+		},
+		{
+			"checksumSHA1": "y3a1tOZVwKCqG2yJZvAYycnelyM=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "81372b2fc2f10bef2a7f338da115c315a56b2726",
+			"revisionTime": "2016-09-13T19:28:34Z"
 		}
 	],
 	"rootPath": "github.com/murphybytes/ucp"

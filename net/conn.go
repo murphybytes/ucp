@@ -24,6 +24,11 @@ type Conn interface {
 	Read(*bytes.Buffer) error
 }
 
+type EncodeConn interface {
+	Write(interface{}) error
+	Read(interface{}) error
+}
+
 // ReaderWriter reads and writes packets of bytes to network
 // bytes are prepended with size and checksum
 type ReaderWriter struct {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"flag"
@@ -28,7 +29,7 @@ var hostInterface string
 func init() {
 
 	flag.BoolVar(&generateKeys, "generate-keys", false, "Generate rsa keys and exit.")
-	flag.StringVar(&ucpDirectory, "ucp-directory", os.Getenv("UCP_DIRECTORY"), "Directory where keys and other application files are stored")
+	flag.StringVar(&ucpDirectory, "ucp-directory", os.Getenv("UCP_SERVER_DIRECTORY"), "Directory where keys and other application files are stored")
 	flag.StringVar(&hostInterface, "host-interface", fmt.Sprintf("localhost:%d", server.DefaultPort), "Interface that server will listen on")
 
 }
@@ -94,6 +95,12 @@ func handleConnection(conn net.Conn) {
 	if err = async.Read(&response); err != nil {
 		log.Println("ERROR: Read failed ", err)
 		return
+	}
+
+	if bytes.Equal(random, response) {
+		log.Println("Async key exchange succeeded")
+	} else {
+		log.Println("ERROR: Async key exchange failed. ")
 	}
 
 }

@@ -1,20 +1,19 @@
 package main
 
 import (
-	"bytes"
-	"crypto/rand"
 	"crypto/rsa"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"path/filepath"
+	"os/user"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/murphybytes/ucp/crypto"
 	unet "github.com/murphybytes/ucp/net"
 	"github.com/murphybytes/ucp/server/shared"
+	"github.com/murphybytes/ucp/wire"
 	"github.com/murphybytes/udt.go/udt"
 )
 
@@ -35,24 +34,31 @@ func init() {
 }
 
 func main() {
+	var err error
 	flag.Parse()
 
 	if generateKeys {
 		fmt.Println("Creating UCP keys and files in ", ucpDirectory)
 
-		if err := crypto.InitializeUcpDir(ucpDirectory); err != nil {
+		if err = crypto.InitializeUcpDir(ucpDirectory); err != nil {
 			fmt.Println(err)
 			os.Exit(errorCode)
 		}
 		os.Exit(successCode)
 	}
 
-	if err := udt.Startup(); err != nil {
+	if err = udt.Startup(); err != nil {
 		log.Printf("Init failed with error %s\n", err.Error())
 		os.Exit(errorCode)
 	}
 
 	defer udt.Cleanup()
+
+	var service *osService
+	if service, err = newOsService(); err != nil {
+		log.Println("Service initialization failed: ", err)
+		os.Exit(errorCode)
+	}
 
 	if listener, err := udt.Listen(hostInterface); err == nil {
 		defer listener.Close()
@@ -61,7 +67,7 @@ func main() {
 			var conn net.Conn
 			if conn, err = listener.Accept(); err == nil {
 				// TODO: handle connection
-				go handleConnection(conn)
+				go handleConnection(conn, service)
 			} else {
 				log.Println("Error accepting connection ", err)
 			}
@@ -72,40 +78,26 @@ func main() {
 
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, s servicable) {
 	defer conn.Close()
-	privateKey, err := crypto.GetPrivateKey(filepath.Join(ucpDirectory, "private-key.pem"))
-	if err != nil {
-		log.Println("Can't fetch private key: ", err)
-	}
-
+	privateKey := s.getPrivateKey()
+	var err error
 	var async *unet.GobEncoderReaderWriter
-	if async, err = createAsynchEncryptionConnection(privateKey, conn); err != nil {
+	var clientPublicKey *rsa.PublicKey
+
+	if async, clientPublicKey, err = createEncryptedConnection(privateKey, conn); err != nil {
 		log.Println("ERROR: ", err)
 	}
 
-	random := make([]byte, 50)
-	rand.Read(random)
-	if err = async.Write(random); err != nil {
-		log.Println("ERROR: Write failed ", err)
+	_, err = handleUserAuthorization(async, s, clientPublicKey, user.Lookup)
+	if err != nil {
+		log.Println("Problem with user authorization: ", err)
 		return
-	}
-
-	var response []byte
-	if err = async.Read(&response); err != nil {
-		log.Println("ERROR: Read failed ", err)
-		return
-	}
-
-	if bytes.Equal(random, response) {
-		log.Println("Async key exchange succeeded")
-	} else {
-		log.Println("ERROR: Async key exchange failed. ")
 	}
 
 }
 
-func createAsynchEncryptionConnection(privateKey *rsa.PrivateKey, conn net.Conn) (async *unet.GobEncoderReaderWriter, e error) {
+func createEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn *unet.GobEncoderReaderWriter, clientPubKey *rsa.PublicKey, e error) {
 	readerWriter := unet.NewReaderWriter(conn)
 	rw := unet.NewGobEncoderReaderWriter(readerWriter)
 
@@ -113,14 +105,61 @@ func createAsynchEncryptionConnection(privateKey *rsa.PrivateKey, conn net.Conn)
 		return
 	}
 
-	var clientPublicKey rsa.PublicKey
-	if e = rw.Read(&clientPublicKey); e != nil {
+	clientPubKey = &rsa.PublicKey{}
+	if e = rw.Read(clientPubKey); e != nil {
 		return
 	}
 
-	async = unet.NewGobEncoderReaderWriter(
-		unet.NewRSAReaderWriter(&clientPublicKey, privateKey, readerWriter),
+	econn = unet.NewGobEncoderReaderWriter(
+		unet.NewRSAReaderWriter(clientPubKey, privateKey, readerWriter),
 	)
-	return
 
+	return
+}
+
+func handleUserAuthorization(
+	conn unet.EncodeConn,
+	s servicable,
+	clientPubKey *rsa.PublicKey,
+	userLookup userLookupFunc) (u *user.User, e error) {
+
+	if e = conn.Write(wire.UserNameRequest); e != nil {
+		return
+	}
+
+	var userName string
+	if e = conn.Read(&userName); e != nil {
+		return
+	}
+
+	if u, e = userLookup(userName); e != nil {
+		authResponse := wire.UserAuthorizationResponse{
+			AuthResponse: wire.NonexistantUser,
+			Description:  fmt.Sprintf("User '%s' is unknown", userName),
+		}
+		if e = conn.Write(authResponse); e != nil {
+			return
+		}
+	}
+
+	// got user see if public key in in authorized keys
+	var keyinAuthorizedKeys bool
+	keyinAuthorizedKeys, e = s.isKeyAuthorized(u, clientPubKey)
+
+	if e != nil {
+		return
+	}
+
+	if keyinAuthorizedKeys {
+		authResponse := wire.UserAuthorizationResponse{
+			AuthResponse: wire.Authorized,
+		}
+		if e = conn.Write(authResponse); e != nil {
+			return
+		}
+	} else {
+		// we need a password
+	}
+
+	return
 }

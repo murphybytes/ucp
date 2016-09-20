@@ -17,6 +17,7 @@ import (
 	"github.com/murphybytes/ucp/server/shared"
 	"github.com/murphybytes/ucp/wire"
 	"github.com/murphybytes/udt.go/udt"
+	"golang.org/x/crypto/ssh"
 )
 
 const errorCode = 1
@@ -144,9 +145,16 @@ func handleUserAuthorization(
 		}
 	}
 
-	// got user see if public key in in authorized keys
+	// got user see if requestor's public key in in authorized keys
+	var sshPublicKey ssh.PublicKey
+	if sshPublicKey, e = ssh.NewPublicKey(clientPubKey); e != nil {
+		return
+	}
+
+	encodedPublicKey := ssh.MarshalAuthorizedKey(sshPublicKey)
+
 	var keyinAuthorizedKeys bool
-	keyinAuthorizedKeys, e = s.isKeyAuthorized(u,
+	keyinAuthorizedKeys, e = s.isKeyAuthorized(u, encodedPublicKey,
 		func() []byte {
 			if reader, err := os.Open(filepath.Join(u.HomeDir, ".ucp", "authorized_keys")); err == nil {
 				defer reader.Close()

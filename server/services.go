@@ -11,7 +11,7 @@ import (
 
 type servicable interface {
 	getPrivateKey() *rsa.PrivateKey
-	isKeyAuthorized(*user.User, func() []byte) (bool, error)
+	isKeyAuthorized(*user.User, []byte, func() []byte) (bool, error)
 }
 
 type userLookupFunc func(string) (*user.User, error)
@@ -35,15 +35,10 @@ func (s *osService) getPrivateKey() (key *rsa.PrivateKey) {
 	return s.privateKey
 }
 
-func (s *osService) isKeyAuthorized(usr *user.User,
+func (s *osService) isKeyAuthorized(usr *user.User, encodedKey []byte,
 	authfile func() []byte) (auth bool, e error) {
 
 	contents := authfile()
-
-	var encodedKey []byte
-	if encodedKey, e = crypto.CreateBase64EncodedPublicKey(s.getPrivateKey()); e != nil {
-		return false, e
-	}
 
 	// strip off line feed
 	encodedKey = encodedKey[:len(encodedKey)-1]

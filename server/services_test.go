@@ -12,8 +12,8 @@ import (
 
 type ServicesTestSuite struct {
 	suite.Suite
-	service *osService
-
+	service        *osService
+	encodedKey     []byte
 	authorizedKeys []byte
 }
 
@@ -26,11 +26,14 @@ func (s *ServicesTestSuite) SetupTest() {
 	b, _ := uc.CreateBase64EncodedPublicKey(p)
 	s.authorizedKeys = append(s.authorizedKeys, b...)
 
+	s.encodedKey, _ = uc.CreateBase64EncodedPublicKey(s.service.privateKey)
+
 }
 
 func (s *ServicesTestSuite) TestAuthorizedKeyPresent() {
+
 	var u user.User
-	auth, e := s.service.isKeyAuthorized(&u, func() []byte { return s.authorizedKeys })
+	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return s.authorizedKeys })
 	s.Nil(e)
 	s.True(auth)
 
@@ -47,7 +50,7 @@ func (s *ServicesTestSuite) TestAuthorizedKeyNotPresent() {
 	}
 
 	var u user.User
-	auth, e := s.service.isKeyAuthorized(&u, func() []byte { return someKeys })
+	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return someKeys })
 	s.Nil(e)
 	s.False(auth)
 
@@ -56,7 +59,7 @@ func (s *ServicesTestSuite) TestAuthorizedKeyNotPresent() {
 func (s *ServicesTestSuite) TestAuthorizedKeyFileEmpty() {
 
 	var u user.User
-	auth, e := s.service.isKeyAuthorized(&u, func() []byte { return []byte{} })
+	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return []byte{} })
 	s.Nil(e)
 	s.False(auth)
 

@@ -70,10 +70,34 @@
 			"revisionTime": "2013-10-25T12:55:14Z"
 		},
 		{
+			"checksumSHA1": "h+pFYiRHBogczS8/F1NoN3Ata44=",
+			"path": "golang.org/x/crypto/curve25519",
+			"revision": "6ab629be5e31660579425a738ba8870beb5b7404",
+			"revisionTime": "2016-09-19T18:57:51Z"
+		},
+		{
+			"checksumSHA1": "wGb//LjBPNxYHqk+dcLo7BjPXK8=",
+			"path": "golang.org/x/crypto/ed25519",
+			"revision": "6ab629be5e31660579425a738ba8870beb5b7404",
+			"revisionTime": "2016-09-19T18:57:51Z"
+		},
+		{
+			"checksumSHA1": "LXFcVx8I587SnWmKycSDEq9yvK8=",
+			"path": "golang.org/x/crypto/ed25519/internal/edwards25519",
+			"revision": "6ab629be5e31660579425a738ba8870beb5b7404",
+			"revisionTime": "2016-09-19T18:57:51Z"
+		},
+		{
+			"checksumSHA1": "mtOqF6Q4ldg801EaT6YTv9LP9bM=",
+			"path": "golang.org/x/crypto/ssh",
+			"revision": "6ab629be5e31660579425a738ba8870beb5b7404",
+			"revisionTime": "2016-09-19T18:57:51Z"
+		},
+		{
 			"checksumSHA1": "y3a1tOZVwKCqG2yJZvAYycnelyM=",
 			"path": "golang.org/x/crypto/ssh/terminal",
-			"revision": "81372b2fc2f10bef2a7f338da115c315a56b2726",
-			"revisionTime": "2016-09-13T19:28:34Z"
+			"revision": "6ab629be5e31660579425a738ba8870beb5b7404",
+			"revisionTime": "2016-09-19T18:57:51Z"
 		}
 	],
 	"rootPath": "github.com/murphybytes/ucp"

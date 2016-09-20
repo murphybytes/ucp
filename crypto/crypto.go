@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
@@ -9,8 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/gob"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -18,6 +15,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // Defines key sizes and initialization vector size for AES
@@ -61,9 +60,6 @@ func UcpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {
 		return
 	}
 
-	var publicKey rsa.PublicKey
-	publicKey = privateKey.PublicKey
-
 	var pemkey = &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
@@ -79,8 +75,10 @@ func UcpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {
 		return
 	}
 
+	privateKeyFile.Chmod(0400)
+
 	var encodedKeyBuffer []byte
-	if encodedKeyBuffer, e = CreateBase64EncodedPublicKey(publicKey); e != nil {
+	if encodedKeyBuffer, e = CreateBase64EncodedPublicKey(privateKey); e != nil {
 		return
 	}
 
@@ -94,18 +92,13 @@ func UcpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {
 
 // CreateBase64EncodedPublicKey returns a textual representation of the pubilc
 // key suitable for authorized_keys files
-func CreateBase64EncodedPublicKey(key rsa.PublicKey) (encodedKey []byte, e error) {
-	var buffer bytes.Buffer
-	encoder := gob.NewEncoder(&buffer)
-	if e = encoder.Encode(key); e != nil {
-		return
+func CreateBase64EncodedPublicKey(key *rsa.PrivateKey) (encodedKey []byte, e error) {
+	var publicKey ssh.PublicKey
+	if publicKey, e = ssh.NewPublicKey(&key.PublicKey); e == nil {
+		encodedKey = ssh.MarshalAuthorizedKey(publicKey)
 	}
 
-	encodedKey = make([]byte, base64.StdEncoding.EncodedLen(buffer.Len()))
-	base64.StdEncoding.Encode(encodedKey, buffer.Bytes())
-	encodedKey = append(encodedKey, '\n')
-
-	return
+	return encodedKey, e
 }
 
 // GetPrivateKey returns a private key

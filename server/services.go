@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"os/user"
 	"path/filepath"
@@ -10,7 +11,7 @@ import (
 
 type servicable interface {
 	getPrivateKey() *rsa.PrivateKey
-	isKeyAuthorized(*user.User, *rsa.PublicKey) (bool, error)
+	isKeyAuthorized(*user.User, func() []byte) (bool, error)
 }
 
 type userLookupFunc func(string) (*user.User, error)
@@ -34,8 +35,26 @@ func (s *osService) getPrivateKey() (key *rsa.PrivateKey) {
 	return s.privateKey
 }
 
-func (s *osService) isKeyAuthorized(usr *user.User, publicKey *rsa.PublicKey) (auth bool, e error) {
+func (s *osService) isKeyAuthorized(usr *user.User,
+	authfile func() []byte) (auth bool, e error) {
 
-	return
+	contents := authfile()
+
+	var encodedKey []byte
+	if encodedKey, e = crypto.CreateBase64EncodedPublicKey(s.getPrivateKey()); e != nil {
+		return false, e
+	}
+
+	// strip off line feed
+	encodedKey = encodedKey[:len(encodedKey)-1]
+
+	for _, line := range bytes.Split(contents, []byte{'\n'}) {
+
+		if bytes.Equal(line, encodedKey) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 
 }

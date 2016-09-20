@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/murphybytes/ucp/client"
 	"github.com/murphybytes/ucp/net"
 	"github.com/murphybytes/ucp/wire"
 	"golang.org/x/crypto/ssh/terminal"
@@ -19,16 +18,16 @@ type Prompt struct {
 
 func (p *Prompt) GetPassword() (pwd string, e error) {
 	fmt.Println("Enter Password: ")
-
-	if pwd, e = terminal.ReadPassword(0); e != nil {
+	var buff []byte
+	if buff, e = terminal.ReadPassword(0); e != nil {
 		return
 	}
-
+	pwd = string(buff)
 	return
 }
 
 func HandleUserAuthorization(conn net.EncodeConn, prompt Prompt) (e error) {
-	if e = conn.Write(client.RemoteUser); e != nil {
+	if e = conn.Write(RemoteUser); e != nil {
 		return
 	}
 
@@ -38,12 +37,13 @@ func HandleUserAuthorization(conn net.EncodeConn, prompt Prompt) (e error) {
 			return
 		}
 
-		switch response.AuthorizationCode {
+		switch response.AuthResponse {
 		case wire.Authorized:
 			return
-		case wire.NonexistentUser:
+		case wire.NonexistantUser:
 			return errors.New(response.Description)
 		case wire.PasswordRequired:
+			var pwd string
 			if pwd, e = prompt.GetPassword(); e == nil {
 				if e = conn.Write(pwd); e != nil {
 					return

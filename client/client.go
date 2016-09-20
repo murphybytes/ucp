@@ -38,7 +38,7 @@ func init() {
 	UCPDirectory = os.Getenv("UCP_DIRECTORY")
 
 	flag.StringVar(&Host, "host", os.Getenv("UCP_HOST"), "IP Address or Hostname for UCP server")
-	flag.StringVar(&RemoteUser, "user", user.Current().Username, "The name of the user who owns the file")
+	flag.StringVar(&RemoteUser, "user", GetCurrentUserName(), "The name of the user who owns the file")
 	flag.IntVar(&Port, "port", getIntFromEnvironment(os.Getenv("UCP_PORT"), server.DefaultPort), "Port for UCP server")
 	flag.BoolVar(&GenerateKeys, "generate-keys", false, "Generate rsa keys and exit.")
 	flag.BoolVar(&ShowHelp, "help", false, "Show help message.")
@@ -50,6 +50,13 @@ func getIntFromEnvironment(envVal string, defaultVal int) (r int) {
 		r = defaultVal
 	}
 	return
+}
+
+func GetCurrentUserName() string {
+	if u, e := user.Current(); e == nil {
+		return u.Username
+	}
+	return ""
 }
 
 func CreateEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn *unet.GobEncoderReaderWriter, e error) {

@@ -4,10 +4,12 @@ import (
 	"crypto/rsa"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/user"
+	"path/filepath"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/murphybytes/ucp/crypto"
@@ -144,7 +146,16 @@ func handleUserAuthorization(
 
 	// got user see if public key in in authorized keys
 	var keyinAuthorizedKeys bool
-	keyinAuthorizedKeys, e = s.isKeyAuthorized(u, clientPubKey)
+	keyinAuthorizedKeys, e = s.isKeyAuthorized(u,
+		func() []byte {
+			if reader, err := os.Open(filepath.Join(u.HomeDir, ".ucp", "authorized_keys")); err == nil {
+				defer reader.Close()
+				if contents, ee := ioutil.ReadAll(reader); ee == nil {
+					return contents
+				}
+			}
+			return []byte{}
+		})
 
 	if e != nil {
 		return

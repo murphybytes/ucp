@@ -12,6 +12,7 @@ import (
 type servicable interface {
 	getPrivateKey() *rsa.PrivateKey
 	isKeyAuthorized(*user.User, []byte, func() []byte) (bool, error)
+	lookupUser(string) (*user.User, error)
 }
 
 type userLookupFunc func(string) (*user.User, error)
@@ -52,4 +53,8 @@ func (s *osService) isKeyAuthorized(usr *user.User, encodedKey []byte,
 
 	return false, nil
 
+}
+
+func (s *osService) lookupUser(userName string) (u *user.User, e error) {
+	return user.Lookup(userName)
 }

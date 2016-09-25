@@ -31,7 +31,7 @@ func (s *ServicesTestSuite) SetupTest() {
 }
 
 func (s *ServicesTestSuite) TestAuthorizedKeyPresent() {
-
+	// dead fox
 	var u user.User
 	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return s.authorizedKeys })
 	s.Nil(e)

@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -92,7 +93,7 @@ func handleConnection(conn net.Conn, s servicable) {
 		log.Println("ERROR: ", err)
 	}
 
-	_, err = handleUserAuthorization(async, s, clientPublicKey, user.Lookup)
+	_, err = handleUserAuthorization(async, s, clientPublicKey)
 	if err != nil {
 		log.Println("Problem with user authorization: ", err)
 		return
@@ -100,7 +101,7 @@ func handleConnection(conn net.Conn, s servicable) {
 
 }
 
-func createEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn *unet.GobEncoderReaderWriter, clientPubKey *rsa.PublicKey, e error) {
+func createEncryptedConnection(privateKey *rsa.PrivateKey, conn io.ReadWriteCloser) (econn *unet.GobEncoderReaderWriter, clientPubKey *rsa.PublicKey, e error) {
 	readerWriter := unet.NewReaderWriter(conn)
 	rw := unet.NewGobEncoderReaderWriter(readerWriter)
 
@@ -120,11 +121,7 @@ func createEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn
 	return
 }
 
-func handleUserAuthorization(
-	conn unet.EncodeConn,
-	s servicable,
-	clientPubKey *rsa.PublicKey,
-	userLookup userLookupFunc) (u *user.User, e error) {
+func handleUserAuthorization(conn unet.EncodeConn, s servicable, clientPubKey *rsa.PublicKey) (u *user.User, e error) {
 
 	if e = conn.Write(wire.UserNameRequest); e != nil {
 		return
@@ -135,7 +132,7 @@ func handleUserAuthorization(
 		return
 	}
 
-	if u, e = userLookup(userName); e != nil {
+	if u, e = s.lookupUser(userName); e != nil {
 		authResponse := wire.UserAuthorizationResponse{
 			AuthResponse: wire.NonexistantUser,
 			Description:  fmt.Sprintf("User '%s' is unknown", userName),
@@ -169,15 +166,16 @@ func handleUserAuthorization(
 		return
 	}
 
+	authResponse := wire.UserAuthorizationResponse{}
+
 	if keyinAuthorizedKeys {
-		authResponse := wire.UserAuthorizationResponse{
-			AuthResponse: wire.Authorized,
-		}
-		if e = conn.Write(authResponse); e != nil {
-			return
-		}
+		authResponse.AuthResponse = wire.Authorized
 	} else {
-		// we need a password
+		authResponse.AuthResponse = wire.PasswordRequired
+	}
+
+	if e = conn.Write(authResponse); e != nil {
+		return
 	}
 
 	return

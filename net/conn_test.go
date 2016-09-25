@@ -188,6 +188,22 @@ func (s *EncryptorTestSuite) TestGobEncodedReadAndWrite() {
 
 }
 
+func (s *EncryptorTestSuite) TestGobEncodedReadAndWriteWithString() {
+	expected := "Here is a string"
+
+	rw := NewGobEncoderReaderWriter(s.encryptedReaderWriter)
+
+	e := rw.Write(expected)
+	s.Nil(e)
+
+	actual := ""
+
+	e = rw.Read(&actual)
+	s.Nil(e)
+	s.Equal(expected, actual)
+
+}
+
 func TestRunEncryptorTestSuite(t *testing.T) {
 	suite.Run(t, new(EncryptorTestSuite))
 }

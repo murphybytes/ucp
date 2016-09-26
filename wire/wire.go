@@ -2,7 +2,10 @@ package wire
 
 import (
 	"crypto/cipher"
+	"errors"
 )
+
+var ErrUnauthorizedUser = errors.New("Unauthorized user")
 
 type Conversation string
 

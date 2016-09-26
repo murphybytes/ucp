@@ -35,6 +35,11 @@ func (ms *MockServiceable) lookupUser(userName string) (*user.User, error) {
 	return args.Get(0).(*user.User), args.Error(1)
 }
 
+func (ms *MockServiceable) validatePassword(user *user.User, password string) (e error) {
+	args := ms.Called(user, password)
+	return args.Error(0)
+}
+
 func (m *MockEncodeConn) Read(a interface{}) error {
 	args := m.Called(a)
 	return args.Error(0)

@@ -64,6 +64,10 @@
 			"revisionTime": "2016-06-15T09:26:46Z"
 		},
 		{
+			"path": "github.com/vvan-po/golang-pam",
+			"revision": ""
+		},
+		{
 			"checksumSHA1": "jSmaEDZqd+WlMOGq/vAahXstllU=",
 			"path": "github.com/zerovm/udt",
 			"revision": "8e9727e7123216d99bf993970ee2c4798587a17e",

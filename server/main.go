@@ -178,5 +178,18 @@ func handleUserAuthorization(conn unet.EncodeConn, s servicable, clientPubKey *r
 		return
 	}
 
+	// if authResponse.AuthResponse == wire.PasswordRequired {
+	// 	e = checkUserPassword(conn, s, u)
+	// }
+
 	return
+}
+
+func checkUserPassword(conn unet.EncodeConn, s servicable, user *user.User) (e error) {
+	var password string
+	if e = conn.Read(&password); e != nil {
+		return
+	}
+	return s.validatePassword(user, password)
+
 }

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
 	"crypto/rsa"
+	"encoding/gob"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -28,6 +32,8 @@ const defaultInterface = "localhost"
 var generateKeys bool
 var ucpDirectory string
 var hostInterface string
+
+var ErrClientAESKeyAck = errors.New("Client didn't acknowledge receipt of AES keys")
 
 func init() {
 
@@ -93,30 +99,120 @@ func handleConnection(conn net.Conn, s servicable) {
 		log.Println("ERROR: ", err)
 	}
 
-	_, err = handleUserAuthorization(async, s, clientPublicKey)
+	var agent *user.User
+	agent, err = handleUserAuthorization(async, s, clientPublicKey)
 	if err != nil {
 		log.Println("Problem with user authorization: ", err)
 		return
 	}
 
+	// use AES encryption from here on out
+	var aesConn unet.EncodeConn
+	aesConn, err = createAESEncryptedConnection(conn, async)
+	if err != nil {
+		log.Println("Failed to set up AES encrypted connection ", err.Error())
+		return
+	}
+
+	if err = handleTransfer(agent, aesConn); err != nil {
+		log.Println("File transfer failed. ", err.Error())
+		return
+	}
+
+}
+
+func handleTransfer(agent *user.User, conn unet.EncodeConn) (e error) {
+	if e = conn.Write(wire.FileTransferInformationRequest); e != nil {
+		return
+	}
+
+	var transferInfo wire.FileTransferInformationResponse
+	if e = conn.Read(&transferInfo); e != nil {
+		return
+	}
+
+	if transferInfo.FileTransferType == wire.FileSend {
+		e = sendFileToRemote(agent, conn)
+	} else {
+		e = receiveFileFromRemote(agent, conn)
+	}
+
+	return
+}
+
+func sendFileToRemote(agent *user.User, conn unet.EncodeConn) (e error) {
+
+	return
+}
+
+func receiveFileFromRemote(agent *user.User, conn unet.EncodeConn) (e error) {
+	return
 }
 
 func createEncryptedConnection(privateKey *rsa.PrivateKey, conn io.ReadWriteCloser) (econn *unet.GobEncoderReaderWriter, clientPubKey *rsa.PublicKey, e error) {
 	readerWriter := unet.NewReaderWriter(conn)
 	rw := unet.NewGobEncoderReaderWriter(readerWriter)
 
+	// we send public key in plain text to client,
+	// client encrypts their key and sends it back to us
 	if e = rw.Write(privateKey.PublicKey); e != nil {
 		return
 	}
 
+	var reader bytes.Buffer
+	if e = readerWriter.Read(&reader); e != nil {
+		return
+	}
+
+	var decrypted []byte
+	if decrypted, e = crypto.DecryptOAEP(privateKey, reader.Bytes()); e != nil {
+		return
+	}
+
+	reader.Reset()
+	reader.Write(decrypted)
+
 	clientPubKey = &rsa.PublicKey{}
-	if e = rw.Read(clientPubKey); e != nil {
+	decoder := gob.NewDecoder(&reader)
+	if e = decoder.Decode(clientPubKey); e != nil {
 		return
 	}
 
 	econn = unet.NewGobEncoderReaderWriter(
 		unet.NewRSAReaderWriter(clientPubKey, privateKey, readerWriter),
 	)
+
+	return
+}
+
+func createAESEncryptedConnection(rootConn io.ReadWriteCloser, asymmConn unet.EncodeConn) (aesConn unet.EncodeConn, e error) {
+	aesParams := wire.SymmetricEncryptionParms{}
+
+	if aesParams.Block, e = crypto.NewCipherBlock(); e != nil {
+		return
+	}
+
+	aesParams.InitializationVector = make([]byte, crypto.IVBlockSize)
+	rand.Read(aesParams.InitializationVector)
+
+	if e = asymmConn.Write(aesParams); e != nil {
+		return
+	}
+
+	// expect a client response over aes channel
+	aesConn = unet.NewGobEncoderReaderWriter(
+		unet.NewCryptoReaderWriter(aesParams.Block, aesParams.InitializationVector,
+			unet.NewReaderWriter(rootConn),
+		),
+	)
+
+	if e = aesConn.Read(&aesParams); e != nil {
+		return
+	}
+
+	if !aesParams.ClientAck {
+		e = ErrClientAESKeyAck
+	}
 
 	return
 }
@@ -137,9 +233,8 @@ func handleUserAuthorization(conn unet.EncodeConn, s servicable, clientPubKey *r
 			AuthResponse: wire.NonexistantUser,
 			Description:  fmt.Sprintf("User '%s' is unknown", userName),
 		}
-		if e = conn.Write(authResponse); e != nil {
-			return
-		}
+		conn.Write(authResponse)
+		return
 	}
 
 	// got user see if requestor's public key in in authorized keys
@@ -178,9 +273,9 @@ func handleUserAuthorization(conn unet.EncodeConn, s servicable, clientPubKey *r
 		return
 	}
 
-	// if authResponse.AuthResponse == wire.PasswordRequired {
-	// 	e = checkUserPassword(conn, s, u)
-	// }
+	if authResponse.AuthResponse == wire.PasswordRequired {
+		e = checkUserPassword(conn, s, u)
+	}
 
 	return
 }
@@ -190,6 +285,21 @@ func checkUserPassword(conn unet.EncodeConn, s servicable, user *user.User) (e e
 	if e = conn.Read(&password); e != nil {
 		return
 	}
-	return s.validatePassword(user, password)
+
+	e = s.validatePassword(user, password)
+
+	if e == nil {
+		conn.Write(wire.UserAuthorizationResponse{
+			AuthResponse: wire.Authorized,
+			Description:  "Success",
+		})
+	} else {
+		conn.Write(wire.UserAuthorizationResponse{
+			AuthResponse: wire.IncorrectPassword,
+			Description:  e.Error(),
+		})
+	}
+
+	return
 
 }

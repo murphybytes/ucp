@@ -3,6 +3,7 @@ package client
 import (
 	"crypto/rsa"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"os/user"
@@ -59,6 +60,21 @@ func GetCurrentUserName() string {
 	return ""
 }
 
+func ExitOnError(e error, msgs ...string) {
+	if e != nil {
+		descriptions := ""
+		for _, msg := range msgs {
+			if descriptions != "" {
+				descriptions += " "
+			}
+			descriptions += msg
+		}
+
+		fmt.Println(descriptions, e.Error())
+		os.Exit(ErrorCode)
+	}
+}
+
 func CreateEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn *unet.GobEncoderReaderWriter, e error) {
 	readerWriter := unet.NewReaderWriter(conn)
 	rw := unet.NewGobEncoderReaderWriter(readerWriter)
@@ -68,13 +84,13 @@ func CreateEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn
 		return
 	}
 
-	if e = rw.Write(privateKey.PublicKey); e != nil {
-		return
-	}
-
 	econn = unet.NewGobEncoderReaderWriter(
 		unet.NewRSAReaderWriter(&serverPublicKey, privateKey, readerWriter),
 	)
+
+	if e = econn.Write(privateKey.PublicKey); e != nil {
+		return
+	}
 
 	return
 }

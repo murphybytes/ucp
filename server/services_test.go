@@ -30,51 +30,39 @@ func (s *ServicesTestSuite) SetupTest() {
 
 }
 
-// func (s *ServicesTestSuite) TestAuthorizedKeyPresent() {
-// 	// dead fox
-// 	var u user.User
-// 	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return s.authorizedKeys })
-// 	s.Nil(e)
-// 	s.True(auth)
-//
-// }
-
-// func (s *ServicesTestSuite) TestAuthorizedKeyNotPresent() {
-//
-// 	someKeys := []byte{}
-//
-// 	for i := 0; i < 3; i++ {
-// 		p, _ := rsa.GenerateKey(rand.Reader, uc.KeySize)
-// 		b, _ := uc.CreateBase64EncodedPublicKey(p)
-// 		someKeys = append(someKeys, b...)
-// 	}
-//
-// 	var u user.User
-// 	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return someKeys })
-// 	s.Nil(e)
-// 	s.False(auth)
-//
-// }
-
-// func (s *ServicesTestSuite) TestAuthorizedKeyFileEmpty() {
-//
-// 	var u user.User
-// 	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return []byte{} })
-// 	s.Nil(e)
-// 	s.False(auth)
-//
-// }
-
-func (s *ServicesTestSuite) TestAuthentication() {
-
-	u := &user.User{
-		Username: "jam",
-	}
-	e := s.service.validatePassword(u, "Iat1atli")
+func (s *ServicesTestSuite) TestAuthorizedKeyPresent() {
+	// dead fox
+	var u user.User
+	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return s.authorizedKeys })
 	s.Nil(e)
+	s.True(auth)
 
-	// e = s.service.validatePassword(u, "Iat1atxx")
-	// s.NotNil(e)
+}
+
+func (s *ServicesTestSuite) TestAuthorizedKeyNotPresent() {
+
+	someKeys := []byte{}
+
+	for i := 0; i < 3; i++ {
+		p, _ := rsa.GenerateKey(rand.Reader, uc.KeySize)
+		b, _ := uc.CreateBase64EncodedPublicKey(p)
+		someKeys = append(someKeys, b...)
+	}
+
+	var u user.User
+	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return someKeys })
+	s.Nil(e)
+	s.False(auth)
+
+}
+
+func (s *ServicesTestSuite) TestAuthorizedKeyFileEmpty() {
+
+	var u user.User
+	auth, e := s.service.isKeyAuthorized(&u, s.encodedKey, func() []byte { return []byte{} })
+	s.Nil(e)
+	s.False(auth)
+
 }
 
 func TestServicesTestSuite(t *testing.T) {

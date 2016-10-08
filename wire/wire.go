@@ -10,7 +10,11 @@ var ErrUnauthorizedUser = errors.New("Unauthorized user")
 type Conversation string
 
 const (
-	UserNameRequest Conversation = "USER_NAME"
+	UserNameRequest                Conversation = "USER_NAME"
+	FileTransferInformationRequest Conversation = "REQUEST_FILE_TRANSFER_INFORMATION"
+	FileTransferStart              Conversation = "FILE_TRANSFER_START"
+	FileTransferSuccess            Conversation = "FILE_TRANSFER_SUCCESS"
+	FileTransferFail               Conversation = "FILE_TRANSFER_FAIL"
 )
 
 // SymmetricEncryptionParms contains values used for AES encryption
@@ -18,6 +22,7 @@ const (
 type SymmetricEncryptionParms struct {
 	Block                cipher.Block
 	InitializationVector []byte
+	ClientAck            bool
 }
 
 type AuthorizationCode int
@@ -33,4 +38,17 @@ const (
 type UserAuthorizationResponse struct {
 	AuthResponse AuthorizationCode
 	Description  string
+}
+
+type TransferType int
+
+const (
+	FileSend TransferType = iota
+	FileReceive
+)
+
+type FileTransferInformationResponse struct {
+	FileTransferType TransferType
+	FileName         string
+	FileSize         int64
 }

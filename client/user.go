@@ -26,7 +26,8 @@ func (p *Prompt) GetPassword() (pwd string, e error) {
 	return
 }
 
-func HandleUserAuthorization(conn net.EncodeConn, prompt Prompt) (e error) {
+// TODO: this needs a test
+func HandleUserAuthorization(conn net.EncodeConn, prompt Prompter) (e error) {
 	if e = conn.Write(RemoteUser); e != nil {
 		return
 	}

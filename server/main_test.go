@@ -67,6 +67,10 @@ func (s *ServerMainTestSuite) SetupTest() {
 
 }
 
+func (s *ServerMainTestSuite) TestCreateEncryptedConnection() {
+
+}
+
 func (s *ServerMainTestSuite) TestCreateHandleUserAuthorization() {
 	userName := "bob"
 	expectedUser := user.User{

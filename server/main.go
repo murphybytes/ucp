@@ -13,8 +13,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
+	"syscall"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/murphybytes/ucp/crypto"
@@ -132,20 +135,174 @@ func handleTransfer(agent *user.User, conn unet.EncodeConn) (e error) {
 	}
 
 	if transferInfo.FileTransferType == wire.FileSend {
-		e = sendFileToRemote(agent, conn)
+		e = sendFileToRemote(agent, conn, transferInfo)
 	} else {
-		e = receiveFileFromRemote(agent, conn)
+		e = receiveFileFromRemote(agent, conn, transferInfo)
 	}
 
 	return
 }
 
-func sendFileToRemote(agent *user.User, conn unet.EncodeConn) (e error) {
-
+func getIdsFromUser(u *user.User) (uid, gid uint32) {
+	val, _ := strconv.ParseUint(u.Uid, 10, 32)
+	uid = uint32(val)
+	val, _ = strconv.ParseUint(u.Gid, 10, 32)
+	gid = uint32(val)
 	return
 }
 
-func receiveFileFromRemote(agent *user.User, conn unet.EncodeConn) (e error) {
+// Start process that will read a file as a user (agent) and send contents to stdout, this, the parent process
+// reads file bytes from stdout and sends them to remote client
+func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.FileTransferInformationResponse) (e error) {
+
+	uid, gid := getIdsFromUser(agent)
+
+	cmd := exec.Command("ucp_file_reader", fmt.Sprintf("-target-file=%s", transferInfo.FileName))
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid}
+
+	var stdOut, stdErr io.ReadCloser
+	if stdOut, e = cmd.StdoutPipe(); e != nil {
+		return
+	}
+
+	if stdErr, e = cmd.StderrPipe(); e != nil {
+		return
+	}
+
+	if e = cmd.Start(); e != nil {
+		return
+	}
+
+	errs := make(chan error, 2)
+
+	go func(errs chan<- error) {
+		close(errs)
+		stdoutErrs := make(chan error)
+		processErrs := make(chan error)
+
+		// read from bytes send from child process and send them to remote
+		go func(stdout io.ReadCloser, conn unet.EncodeConn, errs chan<- error) {
+			defer close(errs)
+			var fileStatus wire.FileTransferInformationResponse
+			buff := make([]byte, server.PipeBufferSize)
+			var read int
+			var err error
+
+			if read, err = stdout.Read(buff); err != nil {
+				errs <- err
+				return
+			}
+
+			reader := bytes.NewBuffer(buff[:read])
+			decoder := gob.NewDecoder(reader)
+
+			if err = decoder.Decode(&fileStatus); err != nil {
+				errs <- err
+				return
+			}
+
+			for totalRead := int64(0); totalRead < fileStatus.FileSize; {
+				if read, err = stdout.Read(buff); err != nil {
+					errs <- err
+					return
+				}
+
+				if err = conn.Write(buff[:read]); err != nil {
+					errs <- err
+					return
+				}
+
+				totalRead += int64(read)
+			}
+
+		}(stdOut, conn, stdoutErrs)
+
+		// read problems from child process
+		go func(stderr io.ReadCloser, errs chan<- error) {
+			defer close(errs)
+			buff := make([]byte, server.PipeBufferSize)
+			var read int
+			var err error
+			if read, err = stderr.Read(buff); err != nil {
+				errs <- err
+				return
+			}
+			reader := bytes.NewBuffer(buff[:read])
+			decoder := gob.NewDecoder(reader)
+			var processError error
+			if err = decoder.Decode(&processError); err != nil {
+				errs <- err
+				return
+			}
+
+			errs <- processError
+
+		}(stdErr, processErrs)
+
+		// multiplex errors
+		select {
+		case er, ok := <-stdoutErrs:
+			if ok {
+				errs <- er
+			}
+		case er, ok := <-processErrs:
+			if ok {
+				errs <- er
+			}
+		}
+
+	}(errs)
+
+	cmd.Wait()
+
+	for err := range errs {
+		log.Println("ERROR SendFileToRemote ", err.Error())
+	}
+
+	return
+
+}
+
+// Read file bytes from remote client, send bytes to process running under account of user that owns the file via stdin
+func receiveFileFromRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.FileTransferInformationResponse) (e error) {
+	uid, gid := getIdsFromUser(agent)
+	cmd := exec.Command("ucp_file_writer", fmt.Sprintf("-target-file=%s", transferInfo.FileName))
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid}
+
+	var stdIn io.WriteCloser
+	if stdIn, e = cmd.StdinPipe(); e != nil {
+		return
+	}
+
+	if e = cmd.Start(); e != nil {
+		return
+	}
+
+	for {
+		var buffer []byte
+
+		if e = conn.Read(&buffer); e != nil {
+			cmd.Process.Kill()
+			break
+		}
+
+		if len(buffer) > 0 {
+			if _, e = stdIn.Write(buffer); e != nil {
+				break
+			}
+		}
+
+		if len(buffer) < server.PipeBufferSize {
+			break
+		}
+	}
+
+	err := cmd.Wait()
+	if e == nil && err != nil {
+		e = err
+	}
 	return
 }
 

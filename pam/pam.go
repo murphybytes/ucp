@@ -8,11 +8,15 @@ package pam
 import "C"
 
 import (
-	"fmt"
+	"errors"
 	"unsafe"
 )
 
-func AuthorizeUser(user, password string) (auth bool, e error) {
+var ErrUnknownUser = errors.New("Unknown user")
+var ErrIncorrectPassword = errors.New("Incorrect password")
+var ErrAuthFailed = errors.New("Authorization failed")
+
+func AuthorizeUser(user, password string) error {
 	cUser := C.CString(user)
 	defer C.free(unsafe.Pointer(cUser))
 	cPassword := C.CString(password)
@@ -21,12 +25,17 @@ func AuthorizeUser(user, password string) (auth bool, e error) {
 	var ret C.int
 	ret = C.authorize_user(cUser, cPassword)
 
-	auth = (ret == C.PAM_SUCCESS)
-
-	if ret != C.PAM_SUCCESS && ret != C.PAM_AUTH_ERR {
-		e = fmt.Errorf("Authorization error %d\n", ret)
+	if ret == C.PAM_SUCCESS {
+		return nil
 	}
 
-	return
+	switch ret {
+	case C.PAM_USER_UNKNOWN:
+		return ErrUnknownUser
+	case C.PAM_AUTH_ERR:
+		return ErrIncorrectPassword
+	}
+
+	return ErrAuthFailed
 
 }

@@ -61,8 +61,6 @@ func HandleUserAuthorization(conn net.EncodeConn, prompt Prompter) (e error) {
 			} else {
 				return
 			}
-			// case wire.IncorrectPassword:
-			// 	return errors.New(response.Description)
 		}
 
 	}

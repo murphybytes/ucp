@@ -15,6 +15,8 @@ const (
 	FileTransferStart              Conversation = "FILE_TRANSFER_START"
 	FileTransferSuccess            Conversation = "FILE_TRANSFER_SUCCESS"
 	FileTransferFail               Conversation = "FILE_TRANSFER_FAIL"
+	FileTransferAbort              Conversation = "FILE_TRANSFER_ABORT"
+	FileTransferMore               Conversation = "FILE_TRANSFER_MORE"
 )
 
 // SymmetricEncryptionParms contains values used for AES encryption

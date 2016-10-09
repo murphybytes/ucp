@@ -37,6 +37,8 @@ var ucpDirectory string
 var hostInterface string
 
 var ErrClientAESKeyAck = errors.New("Client didn't acknowledge receipt of AES keys")
+var ErrClientFileTxferAbort = errors.New("File transfer aborted by client")
+var ErrClientFileTxferFail = errors.New("Client error during file transfer")
 
 func init() {
 
@@ -202,6 +204,22 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 				return
 			}
 
+			if err = conn.Write(fileStatus); err != nil {
+				errs <- err
+				return
+			}
+
+			var conv wire.Conversation
+			if err = conn.Read(&conv); err != nil {
+				errs <- err
+				return
+			}
+
+			if conv != wire.FileTransferStart {
+				errs <- ErrClientFileTxferAbort
+				return
+			}
+
 			for totalRead := int64(0); totalRead < fileStatus.FileSize; {
 				if read, err = stdout.Read(buff); err != nil {
 					errs <- err
@@ -214,6 +232,17 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 				}
 
 				totalRead += int64(read)
+
+				if err = conn.Read(&conv); err != nil {
+					errs <- err
+					return
+				}
+
+				if conv != wire.FileTransferMore {
+					errs <- ErrClientFileTxferFail
+					return
+				}
+
 			}
 
 		}(stdOut, conn, stdoutErrs)

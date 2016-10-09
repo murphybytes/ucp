@@ -13,6 +13,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	unet "github.com/murphybytes/ucp/net"
 	"github.com/murphybytes/ucp/server/shared"
+	"github.com/murphybytes/ucp/wire"
 )
 
 // TODO: Add option to compress files before send/recv
@@ -78,7 +79,10 @@ func ExitOnError(e error, msgs ...string) {
 	}
 }
 
-func CreateEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn *unet.GobEncoderReaderWriter, e error) {
+// CreateRSAEncryptedConnection creates a network connection that will RSA encrypt
+// bytes before sending them.  Takes an RSA private key and a network connection
+// as arguments.
+func CreateRSAEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn *unet.GobEncoderReaderWriter, e error) {
 	readerWriter := unet.NewReaderWriter(conn)
 	rw := unet.NewGobEncoderReaderWriter(readerWriter)
 
@@ -94,6 +98,24 @@ func CreateEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (econn
 	if e = econn.Write(privateKey.PublicKey); e != nil {
 		return
 	}
+
+	return
+}
+
+// CreateAESEncryptedConnection creates a connection that uses AES encryption.  AES (Symmetric Key) encryption is much faster than RSA
+func CreateAESEncryptedConnection(rootConn net.Conn, asyncEncryptedConn unet.EncodeConn) (aesEncryptedConn unet.EncodeConn, e error) {
+	var aesParams wire.SymmetricEncryptionParms
+	if e = asyncEncryptedConn.Read(&aesParams); e != nil {
+		return
+	}
+
+	aesEncryptedConn = unet.NewGobEncoderReaderWriter(
+		unet.NewCryptoReaderWriter(aesParams.Block, aesParams.InitializationVector,
+			unet.NewReaderWriter(rootConn)))
+
+	// ack that we've established aes encrypted connection
+	aesParams.ClientAck = true
+	e = aesEncryptedConn.Write(aesParams)
 
 	return
 }

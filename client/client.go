@@ -2,6 +2,7 @@ package client
 
 import (
 	"crypto/rsa"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -34,6 +35,8 @@ var GenerateKeys bool
 var ShowHelp bool
 
 var RemoteUser string
+
+var ErrBadRequest = errors.New("Unexpected or invalid request")
 
 func init() {
 	UCPDirectory = os.Getenv("UCP_DIRECTORY")

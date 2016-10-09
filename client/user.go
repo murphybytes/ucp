@@ -28,6 +28,15 @@ func (p *Prompt) GetPassword() (pwd string, e error) {
 
 // TODO: this needs a test
 func HandleUserAuthorization(conn net.EncodeConn, prompt Prompter) (e error) {
+	var request wire.Conversation
+	if e = conn.Read(&request); e != nil {
+		return
+	}
+
+	if request != wire.UserNameRequest {
+		return ErrBadRequest
+	}
+
 	if e = conn.Write(RemoteUser); e != nil {
 		return
 	}
@@ -41,7 +50,7 @@ func HandleUserAuthorization(conn net.EncodeConn, prompt Prompter) (e error) {
 		switch response.AuthResponse {
 		case wire.Authorized:
 			return
-		case wire.NonexistantUser:
+		case wire.NonexistantUser, wire.IncorrectPassword:
 			return errors.New(response.Description)
 		case wire.PasswordRequired:
 			var pwd string
@@ -52,8 +61,8 @@ func HandleUserAuthorization(conn net.EncodeConn, prompt Prompter) (e error) {
 			} else {
 				return
 			}
-		case wire.IncorrectPassword:
-			return errors.New(response.Description)
+			// case wire.IncorrectPassword:
+			// 	return errors.New(response.Description)
 		}
 
 	}

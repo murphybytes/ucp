@@ -1,6 +1,8 @@
 package client
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rsa"
 	"errors"
 	"flag"
@@ -8,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -40,10 +43,10 @@ var RemoteUser string
 var ErrBadRequest = errors.New("Unexpected or invalid request")
 
 func init() {
-	UCPDirectory = os.Getenv("UCP_DIRECTORY")
+	UCPDirectory = getUcpDirectory()
 
 	flag.StringVar(&Host, "host", os.Getenv("UCP_HOST"), "IP Address or Hostname for UCP server")
-	flag.StringVar(&RemoteUser, "user", GetCurrentUserName(), "The name of the user who owns the file")
+	flag.StringVar(&RemoteUser, "user", GetCurrentUserName(), "The name of the remote user who owns the file")
 	flag.IntVar(&Port, "port", getIntFromEnvironment(os.Getenv("UCP_PORT"), server.DefaultPort), "Port for UCP server")
 	flag.BoolVar(&GenerateKeys, "generate-keys", false, "Generate rsa keys and exit.")
 	flag.BoolVar(&ShowHelp, "help", false, "Show help message.")
@@ -54,6 +57,19 @@ func getIntFromEnvironment(envVal string, defaultVal int) (r int) {
 	if r, err = strconv.Atoi(envVal); err != nil {
 		r = defaultVal
 	}
+	return
+}
+
+func getUcpDirectory() (dir string) {
+	dir = os.Getenv("UCP_DIRECTORY")
+	if dir == "" {
+		if user, e := user.Current(); e == nil {
+			dir = filepath.Join(user.HomeDir, ".ucp")
+		} else {
+			panic(e.Error())
+		}
+	}
+	fmt.Println("DIR", dir)
 	return
 }
 
@@ -91,13 +107,13 @@ func CreateRSAEncryptedConnection(privateKey *rsa.PrivateKey, conn net.Conn) (ec
 		return
 	}
 
+	if e = rw.Write(privateKey.PublicKey); e != nil {
+		return
+	}
+
 	econn = unet.NewGobEncoderReaderWriter(
 		unet.NewRSAReaderWriter(&serverPublicKey, privateKey, readerWriter),
 	)
-
-	if e = econn.Write(privateKey.PublicKey); e != nil {
-		return
-	}
 
 	return
 }
@@ -109,8 +125,13 @@ func CreateAESEncryptedConnection(rootConn net.Conn, asyncEncryptedConn unet.Enc
 		return
 	}
 
+	var block cipher.Block
+	if block, e = aes.NewCipher(aesParams.Key); e != nil {
+		return
+	}
+
 	aesEncryptedConn = unet.NewGobEncoderReaderWriter(
-		unet.NewCryptoReaderWriter(aesParams.Block, aesParams.InitializationVector,
+		unet.NewCryptoReaderWriter(block, aesParams.InitializationVector,
 			unet.NewReaderWriter(rootConn)))
 
 	// ack that we've established aes encrypted connection

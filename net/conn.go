@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/murphybytes/ucp/crypto"
@@ -89,7 +88,7 @@ func (w *ReaderWriter) Read(out *bytes.Buffer) (e error) {
 	out.Write(buff[headerLen:read])
 
 	for out.Len() < size {
-		fmt.Println("read xxx")
+
 		read, e = w.conn.Read(buff)
 		if e != nil && e != io.EOF {
 			return
@@ -208,14 +207,7 @@ func (g *GobEncoderReaderWriter) Write(v interface{}) (e error) {
 		return
 	}
 
-	var written int
-	if written, e = g.readerWriter.Write(w.Bytes()); e != nil {
-		return
-	}
-
-	if written != w.Len() {
-		e = ErrIncompleteWrite
-	}
+	_, e = g.readerWriter.Write(w.Bytes())
 
 	return
 }

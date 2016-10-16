@@ -32,7 +32,7 @@ func TestAESEncryption(t *testing.T) {
 	}
 
 	var block cipher.Block
-	if block, e = NewCipherBlock(); e != nil {
+	if block, _, e = NewCipherBlock(); e != nil {
 		t.Fatal("Could not create cipher block ", e.Error())
 	}
 

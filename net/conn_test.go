@@ -139,7 +139,7 @@ func (s *EncryptorTestSuite) SetupTest() {
 	s.m = new(mockReaderWriter)
 	s.iv = make([]byte, crypto.IVBlockSize)
 	rand.Read(s.iv)
-	s.block, _ = crypto.NewCipherBlock()
+	s.block, _, _ = crypto.NewCipherBlock()
 	s.encryptedReaderWriter = NewCryptoReaderWriter(s.block, s.iv, s.m)
 
 }

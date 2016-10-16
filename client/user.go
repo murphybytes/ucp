@@ -41,8 +41,9 @@ func HandleUserAuthorization(conn net.EncodeConn, prompt Prompter) (e error) {
 		return
 	}
 
-	var response wire.UserAuthorizationResponse
 	for {
+		var response wire.UserAuthorizationResponse
+
 		if e = conn.Read(&response); e != nil {
 			return
 		}

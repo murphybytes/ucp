@@ -17,6 +17,7 @@ func main() {
 
 	var targetFile string
 	flag.StringVar(&targetFile, "target-file", "", "name of the file that will be read from.")
+	flag.Parse()
 
 	if file, err := os.Open(targetFile); err == nil {
 		defer file.Close()

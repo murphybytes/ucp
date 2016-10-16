@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
@@ -45,7 +46,6 @@ func init() {
 	flag.BoolVar(&generateKeys, "generate-keys", false, "Generate rsa keys and exit.")
 	flag.StringVar(&ucpDirectory, "ucp-directory", os.Getenv("UCP_SERVER_DIRECTORY"), "Directory where keys and other application files are stored")
 	flag.StringVar(&hostInterface, "host-interface", fmt.Sprintf("localhost:%d", server.DefaultPort), "Interface that server will listen on")
-
 }
 
 func main() {
@@ -104,18 +104,18 @@ func handleConnection(conn net.Conn, s servicable) {
 		log.Println("ERROR: ", err)
 	}
 
-	var agent *user.User
-	agent, err = handleUserAuthorization(async, s, clientPublicKey)
-	if err != nil {
-		log.Println("Problem with user authorization: ", err)
-		return
-	}
-
 	// use AES encryption from here on out
 	var aesConn unet.EncodeConn
 	aesConn, err = createAESEncryptedConnection(conn, async)
 	if err != nil {
 		log.Println("Failed to set up AES encrypted connection ", err.Error())
+		return
+	}
+
+	var agent *user.User
+	agent, err = handleUserAuthorization(aesConn, s, clientPublicKey)
+	if err != nil {
+		log.Println("Problem with user authorization: ", err)
 		return
 	}
 
@@ -153,15 +153,26 @@ func getIdsFromUser(u *user.User) (uid, gid uint32) {
 	return
 }
 
+func userIsRoot() bool {
+	if u, e := user.Current(); e == nil {
+		return u.Uid == "0"
+	}
+
+	return false
+
+}
+
 // Start process that will read a file as a user (agent) and send contents to stdout, this, the parent process
 // reads file bytes from stdout and sends them to remote client
 func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.FileTransferInformationResponse) (e error) {
 
-	uid, gid := getIdsFromUser(agent)
-
 	cmd := exec.Command("ucp_file_reader", fmt.Sprintf("-target-file=%s", transferInfo.FileName))
-	cmd.SysProcAttr = &syscall.SysProcAttr{}
-	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid}
+
+	if userIsRoot() {
+		uid, gid := getIdsFromUser(agent)
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid}
+	}
 
 	var stdOut, stdErr io.ReadCloser
 	if stdOut, e = cmd.StdoutPipe(); e != nil {
@@ -179,7 +190,7 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 	errs := make(chan error, 2)
 
 	go func(errs chan<- error) {
-		close(errs)
+		defer close(errs)
 		stdoutErrs := make(chan error)
 		processErrs := make(chan error)
 
@@ -204,6 +215,8 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 				return
 			}
 
+			fmt.Println("got file info")
+
 			if err = conn.Write(fileStatus); err != nil {
 				errs <- err
 				return
@@ -221,7 +234,7 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 			}
 
 			for totalRead := int64(0); totalRead < fileStatus.FileSize; {
-				if read, err = stdout.Read(buff); err != nil {
+				if read, err = stdout.Read(buff); err != nil && err != io.EOF {
 					errs <- err
 					return
 				}
@@ -233,15 +246,7 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 
 				totalRead += int64(read)
 
-				if err = conn.Read(&conv); err != nil {
-					errs <- err
-					return
-				}
-
-				if conv != wire.FileTransferMore {
-					errs <- ErrClientFileTxferFail
-					return
-				}
+				fmt.Printf("Read %d of expected %d\n", totalRead, fileStatus.FileSize)
 
 			}
 
@@ -339,28 +344,12 @@ func createEncryptedConnection(privateKey *rsa.PrivateKey, conn io.ReadWriteClos
 	readerWriter := unet.NewReaderWriter(conn)
 	rw := unet.NewGobEncoderReaderWriter(readerWriter)
 
-	// we send public key in plain text to client,
-	// client encrypts their key and sends it back to us
 	if e = rw.Write(privateKey.PublicKey); e != nil {
 		return
 	}
 
-	var reader bytes.Buffer
-	if e = readerWriter.Read(&reader); e != nil {
-		return
-	}
-
-	var decrypted []byte
-	if decrypted, e = crypto.DecryptOAEP(privateKey, reader.Bytes()); e != nil {
-		return
-	}
-
-	reader.Reset()
-	reader.Write(decrypted)
-
 	clientPubKey = &rsa.PublicKey{}
-	decoder := gob.NewDecoder(&reader)
-	if e = decoder.Decode(clientPubKey); e != nil {
+	if e = rw.Read(clientPubKey); e != nil {
 		return
 	}
 
@@ -373,8 +362,8 @@ func createEncryptedConnection(privateKey *rsa.PrivateKey, conn io.ReadWriteClos
 
 func createAESEncryptedConnection(rootConn io.ReadWriteCloser, asymmConn unet.EncodeConn) (aesConn unet.EncodeConn, e error) {
 	aesParams := wire.SymmetricEncryptionParms{}
-
-	if aesParams.Block, e = crypto.NewCipherBlock(); e != nil {
+	var block cipher.Block
+	if block, aesParams.Key, e = crypto.NewCipherBlock(); e != nil {
 		return
 	}
 
@@ -385,9 +374,11 @@ func createAESEncryptedConnection(rootConn io.ReadWriteCloser, asymmConn unet.En
 		return
 	}
 
+	log.Println("wrote aes connection")
+
 	// expect a client response over aes channel
 	aesConn = unet.NewGobEncoderReaderWriter(
-		unet.NewCryptoReaderWriter(aesParams.Block, aesParams.InitializationVector,
+		unet.NewCryptoReaderWriter(block, aesParams.InitializationVector,
 			unet.NewReaderWriter(rootConn),
 		),
 	)
@@ -413,6 +404,8 @@ func handleUserAuthorization(conn unet.EncodeConn, s servicable, clientPubKey *r
 	if e = conn.Read(&userName); e != nil {
 		return
 	}
+
+	fmt.Println("user name =", userName)
 
 	if u, e = s.lookupUser(userName); e != nil {
 		authResponse := wire.UserAuthorizationResponse{
@@ -472,9 +465,12 @@ func checkUserPassword(conn unet.EncodeConn, s servicable, user *user.User) (e e
 		return
 	}
 
+	fmt.Println("Got password", password)
+
 	e = s.validatePassword(user, password)
 
 	if e == nil {
+		fmt.Println("authorized")
 		conn.Write(wire.UserAuthorizationResponse{
 			AuthResponse: wire.Authorized,
 			Description:  "Success",

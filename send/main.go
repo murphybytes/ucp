@@ -52,13 +52,13 @@ func main() {
 		os.Exit(client.ErrorCode)
 	}
 
-	asyncConn, err := client.CreateEncryptedConnection(privateKey, conn)
+	asyncConn, err := client.CreateRSAEncryptedConnection(privateKey, conn)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(client.ErrorCode)
 	}
 
-	if err = client.HandleUserAuthorization(asyncConn, client.Prompt{}); err != nil {
+	if err = client.HandleUserAuthorization(asyncConn, &client.Prompt{}); err != nil {
 		fmt.Println("User authorization failed: ", err)
 		os.Exit(client.ErrorCode)
 	}

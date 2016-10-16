@@ -75,14 +75,14 @@ func UcpKeyGenerate(privateKeyPath, publicKeyPath string) (e error) {
 		return
 	}
 
-	privateKeyFile.Chmod(0400)
+	privateKeyFile.Chmod(0600)
 
 	var encodedKeyBuffer []byte
 	if encodedKeyBuffer, e = CreateBase64EncodedPublicKey(privateKey); e != nil {
 		return
 	}
 
-	if e = ioutil.WriteFile(publicKeyPath, encodedKeyBuffer, 0655); e != nil {
+	if e = ioutil.WriteFile(publicKeyPath, encodedKeyBuffer, 0644); e != nil {
 		return
 	}
 
@@ -150,8 +150,8 @@ func DecryptOAEP(privateKey crypto.PrivateKey, encrypted []byte) (decrypted []by
 
 // NewCipherBlock returns a key that can be used for AES
 // encryption
-func NewCipherBlock() (block cipher.Block, e error) {
-	key := make([]byte, AESKeySize)
+func NewCipherBlock() (block cipher.Block, key []byte, e error) {
+	key = make([]byte, AESKeySize)
 
 	if _, e = rand.Read(key); e != nil {
 		return

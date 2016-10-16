@@ -57,13 +57,17 @@ func main() {
 	asymmEncryptedConn, err = client.CreateRSAEncryptedConnection(privateKey, conn)
 	client.ExitOnError(err)
 
-	var prompt client.Prompt
-	err = client.HandleUserAuthorization(asymmEncryptedConn, &prompt)
-	client.ExitOnError(err, "User authorization failed")
+	fmt.Println("async connected")
 
 	var aesEncryptedConn unet.EncodeConn
 	aesEncryptedConn, err = client.CreateAESEncryptedConnection(conn, asymmEncryptedConn)
 	client.ExitOnError(err, "Failed to establish aes encrypted connection")
+
+	fmt.Println("aes connection established")
+
+	var prompt client.Prompt
+	err = client.HandleUserAuthorization(aesEncryptedConn, &prompt)
+	client.ExitOnError(err, "User authorization failed")
 
 	err = receiveFileFromServer(localFilePath, remoteFilePath, aesEncryptedConn)
 	client.ExitOnError(err, "File transfer failed")
@@ -111,6 +115,8 @@ func receiveFileFromServer(localPath, remotePath string, conn unet.EncodeConn) (
 		}
 
 		totalRead += int64(len(buffer))
+
+		fmt.Printf("Total read %d of expected %d\n", totalRead, transferInfo.FileSize)
 
 		if _, e = localFile.Write(buffer); e != nil {
 			conn.Write(wire.FileTransferFail)

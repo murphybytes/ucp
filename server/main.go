@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/gob"
 	"errors"
 	"flag"
 	"fmt"
@@ -174,12 +172,14 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid}
 	}
 
-	var stdOut, stdErr io.ReadCloser
+	var stdOut, io.ReadCloser
+	var stdIn io.WriteCloser
+
 	if stdOut, e = cmd.StdoutPipe(); e != nil {
 		return
 	}
 
-	if stdErr, e = cmd.StderrPipe(); e != nil {
+	if stdIn, e = cmd.StdinPipe(); e != nil {
 		return
 	}
 
@@ -187,112 +187,13 @@ func sendFileToRemote(agent *user.User, conn unet.EncodeConn, transferInfo wire.
 		return
 	}
 
-	errs := make(chan error, 2)
+	stdInOutPair := server.NewReadWriteJoiner(stdOut, stdIn)
+	childConn := unet.NewGobEncoderReaderWriter(stdInOutPair)
 
-	go func(errs chan<- error) {
-		defer close(errs)
-		stdoutErrs := make(chan error)
-		processErrs := make(chan error)
-
-		// read from bytes send from child process and send them to remote
-		go func(stdout io.ReadCloser, conn unet.EncodeConn, errs chan<- error) {
-			defer close(errs)
-			var fileStatus wire.FileTransferInformationResponse
-			buff := make([]byte, server.PipeBufferSize)
-			var read int
-			var err error
-
-			if read, err = stdout.Read(buff); err != nil {
-				errs <- err
-				return
-			}
-
-			reader := bytes.NewBuffer(buff[:read])
-			decoder := gob.NewDecoder(reader)
-
-			if err = decoder.Decode(&fileStatus); err != nil {
-				errs <- err
-				return
-			}
-
-			fmt.Println("got file info")
-
-			if err = conn.Write(fileStatus); err != nil {
-				errs <- err
-				return
-			}
-
-			var conv wire.Conversation
-			if err = conn.Read(&conv); err != nil {
-				errs <- err
-				return
-			}
-
-			if conv != wire.FileTransferStart {
-				errs <- ErrClientFileTxferAbort
-				return
-			}
-
-			for totalRead := int64(0); totalRead < fileStatus.FileSize; {
-				if read, err = stdout.Read(buff); err != nil && err != io.EOF {
-					errs <- err
-					return
-				}
-
-				if err = conn.Write(buff[:read]); err != nil {
-					errs <- err
-					return
-				}
-
-				totalRead += int64(read)
-
-				fmt.Printf("Read %d of expected %d\n", totalRead, fileStatus.FileSize)
-
-			}
-
-		}(stdOut, conn, stdoutErrs)
-
-		// read problems from child process
-		go func(stderr io.ReadCloser, errs chan<- error) {
-			defer close(errs)
-			buff := make([]byte, server.PipeBufferSize)
-			var read int
-			var err error
-			if read, err = stderr.Read(buff); err != nil {
-				errs <- err
-				return
-			}
-			reader := bytes.NewBuffer(buff[:read])
-			decoder := gob.NewDecoder(reader)
-			var processError error
-			if err = decoder.Decode(&processError); err != nil {
-				errs <- err
-				return
-			}
-
-			errs <- processError
-
-		}(stdErr, processErrs)
-
-		// multiplex errors
-		select {
-		case er, ok := <-stdoutErrs:
-			if ok {
-				errs <- er
-			}
-		case er, ok := <-processErrs:
-			if ok {
-				errs <- er
-			}
-		}
-
-	}(errs)
+	e = readFromChildProcessAndSendToRemote(childConn, conn)
 
 	cmd.Wait()
 
-	for err := range errs {
-		log.Println("ERROR SendFileToRemote ", err.Error())
-	}
 
 	return
 

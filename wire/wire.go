@@ -14,6 +14,7 @@ const (
 	FileTransferFail               Conversation = "FILE_TRANSFER_FAIL"
 	FileTransferAbort              Conversation = "FILE_TRANSFER_ABORT"
 	FileTransferMore               Conversation = "FILE_TRANSFER_MORE"
+	FileTransferComplete           Conversation = "FILE_TRANSFER_COMPLETE"
 )
 
 // SymmetricEncryptionParms contains values used for AES encryption
@@ -50,4 +51,10 @@ type FileTransferInformationResponse struct {
 	FileTransferType TransferType
 	FileName         string
 	FileSize         int64
+	Error            error
+}
+
+type FileChunk struct {
+	Buffer []byte
+	Error  error
 }

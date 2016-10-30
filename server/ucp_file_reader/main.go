@@ -1,13 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"encoding/gob"
 	"flag"
 	"io"
 
 	"os"
 
+	"github.com/murphybytes/ucp/net"
 	"github.com/murphybytes/ucp/server/shared"
 	"github.com/murphybytes/ucp/wire"
 )
@@ -19,63 +18,77 @@ func main() {
 	flag.StringVar(&targetFile, "target-file", "", "name of the file that will be read from.")
 	flag.Parse()
 
+	readerWriter := server.NewReadWriteJoiner(os.Stdin, os.Stdout)
+	parentConn := net.NewGobEncoderReaderWriter(readerWriter)
+
 	if file, err := os.Open(targetFile); err == nil {
 		defer file.Close()
 
-		if err = sendFileSizeToParentProcess(file); err != nil {
-			sendErrorToParentProcess(err)
+		if err = sendFileSizeToParentProcess(parentConn, file); err != nil {
+			os.Exit(server.Error)
 		}
 
 		buffer := make([]byte, server.PipeBufferSize)
 
 		for {
+			var chunkInfo wire.FileChunk
+
 			var read int
 			read, err = file.Read(buffer)
 
+			if err != nil {
+				chunkInfo.Error = err
+				parentConn.Write(chunkInfo)
+				waitOnParentProcess(parentConn)
+				os.Exit(server.Error)
+			}
+
 			if read > 0 {
-				os.Stdout.Write(buffer[:read])
+				chunkInfo.Buffer = buffer[:read]
+				if err = parentConn.Write(chunkInfo); err != nil {
+					os.Exit(server.Error)
+				}
 			}
 
 			if read < server.PipeBufferSize || err == io.EOF {
+				// block until server reads and says we're done
+				waitOnParentProcess(parentConn)
 				os.Exit(server.Success)
 			}
 
-			if err != nil {
-				os.Exit(server.Error)
-			}
 		}
 
 	} else {
-		sendErrorToParentProcess(err)
+		//	sendErrorToParentProcess(err)
+		transferResponse := wire.FileTransferInformationResponse{
+			Error: err,
+		}
+		parentConn.Write(transferResponse)
+		waitOnParentProcess(parentConn)
 	}
 }
 
-func sendErrorToParentProcess(e error) {
-	var writer bytes.Buffer
-	encoder := gob.NewEncoder(&writer)
-	encoder.Encode(e)
-	os.Stderr.Write(writer.Bytes())
-	os.Exit(server.Error)
+// waitOnParentProcess will block until we get a response from parent
+// process. This is so this process doesn't exit and close pipes before
+// the parent gets a chance to read from them
+func waitOnParentProcess(conn net.EncodeConn) {
+	var response wire.Conversation
+	conn.Read(&response)
 }
 
-func sendFileSizeToParentProcess(file *os.File) (e error) {
+func sendFileSizeToParentProcess(conn net.EncodeConn, file *os.File) (e error) {
 	var txferInfo wire.FileTransferInformationResponse
 	var fileInfo os.FileInfo
 	// tell parent process how many bytes we'll be sending
 	if fileInfo, e = file.Stat(); e != nil {
+		txferInfo.Error = e
+		conn.Write(txferInfo)
+		waitOnParentProcess(conn)
 		return
 	}
 
 	txferInfo.FileSize = fileInfo.Size()
-
-	var gobBuffer bytes.Buffer
-	encoder := gob.NewEncoder(&gobBuffer)
-
-	if e = encoder.Encode(txferInfo); e != nil {
-		return
-	}
-
-	os.Stdout.Write(gobBuffer.Bytes())
+	e = conn.Write(txferInfo)
 
 	return
 }

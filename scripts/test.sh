@@ -50,6 +50,11 @@ echo "Y" | urecv --generate-keys > /dev/null
 
 check_result
 
+# add newly generated key to authorized_keys so we don't get prompted
+# for password
+rm -f $HOME/.ucp/authorized_keys 
+cat $HOME/.ucp/public-key >> $HOME/.ucp/authorized_keys
+
 echo "Generating test file"
 dd if=/dev/urandom of=testfile bs=10000 count=100
 

@@ -24,3 +24,8 @@ _testmain.go
 *.prof
 
 .env
+*.log
+ucp_file_reader
+ucp_file_writer
+urecv
+userve

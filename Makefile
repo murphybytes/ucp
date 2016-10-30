@@ -4,9 +4,9 @@ UDTDIR="vendor/github.com/murphybytes/udt.go/vendor/udt"
 RACE=-race
 
 build_server:
-	go build $(RACE) -o userve github.com/murphybytes/ucp/server; ln -sf $(shell pwd)/userve $(GOPATH)/bin/.
-	go build $(RACE) -o ucp_file_reader github.com/murphybytes/ucp/server/ucp_file_reader; ln -sf $(shell pwd)/ucp_file_reader $(GOPATH)/bin/.
-	go build $(RACE) -o ucp_file_writer github.com/murphybytes/ucp/server/ucp_file_writer; ln -sf $(shell pwd)/ucp_file_writer $(GOPATH)/bin/.
+	go build $(RACE) github.com/murphybytes/ucp/userve; ln -sf $(shell pwd)/userve $(GOPATH)/bin/.
+	go build $(RACE) -o ucp_file_reader github.com/murphybytes/ucp/userve/ucp_file_reader; ln -sf $(shell pwd)/ucp_file_reader $(GOPATH)/bin/.
+	go build $(RACE) -o ucp_file_writer github.com/murphybytes/ucp/userve/ucp_file_writer; ln -sf $(shell pwd)/ucp_file_writer $(GOPATH)/bin/.
 
 
 build_send:
@@ -27,7 +27,9 @@ test_client:
 
 test_server:
 	go test -v github.com/murphybytes/ucp/server
-	go test -v github.com/murphybytes/ucp/server/shared
+
+test_userve:
+	go test -v github.com/murphybytes/ucp/userve
 
 build_udt:
 	cd $(UDTDIR); make clean; make -e os=$(OS) arch=$(ARCH);cp src/libudt.* $(GOPATH)/bin/.; make clean
@@ -38,8 +40,8 @@ test_net:
 test_crypto:
 	go test -v github.com/murphybytes/ucp/crypto
 
-test: test_net test_crypto test_send test_recv test_client test_server
+test: test_net test_crypto test_send test_recv test_client test_server test_userve 
 
 all: build_udt build_server build_recv build_send build_recv
 
-.PHONY: build_udt build_server all test test_net test_crypto test_send test_recv test_client test_server
+.PHONY: build_udt build_server all test test_net test_crypto test_send test_recv test_client test_server test_userve

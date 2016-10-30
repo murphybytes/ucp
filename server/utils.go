@@ -19,7 +19,7 @@ func NewReadWriteJoiner(r io.Reader, w io.Writer) *ReadWriteJoiner {
 	}
 }
 
-func (s *ReadWriteJoiner) Read(b *bytes.Buffer) (n int, e error) {
+func (s *ReadWriteJoiner) Read(b *bytes.Buffer) (e error) {
 
 	buffer := make([]byte, readBufferSize)
 	for {
@@ -27,7 +27,6 @@ func (s *ReadWriteJoiner) Read(b *bytes.Buffer) (n int, e error) {
 		var read int
 		read, e = s.reader.Read(buffer)
 
-		n += read
 		if e != nil && e != io.EOF {
 			return
 		}

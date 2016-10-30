@@ -70,9 +70,9 @@ func (s *UtilsSuite) TestReadWriteJoiner() {
 	)
 
 	var reader bytes.Buffer
-	n, err := undertest.Read(&reader)
+	err := undertest.Read(&reader)
 	s.Nil(err)
-	s.Equal(len(buff), n)
+	s.Equal(len(buff), reader.Len())
 	s.True(bytes.Equal(reader.Bytes(), buff))
 
 }

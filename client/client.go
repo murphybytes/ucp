@@ -15,7 +15,7 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 	unet "github.com/murphybytes/ucp/net"
-	"github.com/murphybytes/ucp/server/shared"
+	"github.com/murphybytes/ucp/server"
 	"github.com/murphybytes/ucp/wire"
 )
 

@@ -47,7 +47,7 @@ const (
 	FileReceive
 )
 
-type FileTransferInformationResponse struct {
+type FileTransferInformation struct {
 	FileTransferType TransferType
 	FileName         string
 	FileSize         int64

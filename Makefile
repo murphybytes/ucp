@@ -4,9 +4,8 @@ UDTDIR="vendor/github.com/murphybytes/udt.go/vendor/udt"
 RACE=-race
 
 build_server:
-	go build $(RACE) github.com/murphybytes/ucp/userve; ln -sf $(shell pwd)/userve $(GOPATH)/bin/.
-	go build $(RACE) -o ucp_file_reader github.com/murphybytes/ucp/userve/ucp_file_reader; ln -sf $(shell pwd)/ucp_file_reader $(GOPATH)/bin/.
-	go build $(RACE) -o ucp_file_writer github.com/murphybytes/ucp/userve/ucp_file_writer; ln -sf $(shell pwd)/ucp_file_writer $(GOPATH)/bin/.
+	go install $(RACE) github.com/murphybytes/ucp/userve
+	go install github.com/murphybytes/ucp/uproxy
 
 
 build_send:
@@ -40,8 +39,11 @@ test_net:
 test_crypto:
 	go test -v github.com/murphybytes/ucp/crypto
 
-test: test_net test_crypto test_send test_recv test_client test_server test_userve 
+test_uproxy:
+	go test -v github.com/murphybytes/ucp/uproxy
 
-all: build_udt build_server build_recv build_send build_recv
+test: test_net test_crypto test_send test_recv test_client test_server test_userve test_uproxy
 
-.PHONY: build_udt build_server all test test_net test_crypto test_send test_recv test_client test_server test_userve
+all: build_udt build_server build_recv build_send
+
+.PHONY: build_udt build_server all test test_net test_crypto test_send test_recv test_client test_server test_userve test_uproxy

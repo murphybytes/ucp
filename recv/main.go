@@ -84,7 +84,7 @@ func receiveFileFromServer(localPath, remotePath string, conn unet.EncodeConn) (
 		return client.ErrBadRequest
 	}
 
-	transferInfo := wire.FileTransferInformationResponse{
+	transferInfo := wire.FileTransferInformation{
 		FileTransferType: wire.FileSend,
 		FileName:         remotePath,
 	}

@@ -2,10 +2,11 @@ package server
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 )
 
-const readBufferSize = PipeBufferSize
+const readBufferSize = PipeBufferSize * 2
 
 type ReadWriteJoiner struct {
 	reader io.Reader
@@ -26,16 +27,18 @@ func (s *ReadWriteJoiner) Read(b *bytes.Buffer) (e error) {
 
 		var read int
 		read, e = s.reader.Read(buffer)
-
+		fmt.Printf("Read %d Error %+v\n", read, e)
 		if e != nil && e != io.EOF {
 			return
 		}
 
 		if read > 0 {
 			b.Write(buffer[:read])
+			//		continue
 		}
 
 		if read < readBufferSize {
+			fmt.Println("Exit")
 			return
 		}
 

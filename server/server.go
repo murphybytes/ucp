@@ -12,6 +12,6 @@ const Error = 1
 const ErrSocket = 2
 
 const PipeBufferSize = 100000
-const FileReaderBufferSize = 10000
+const FileReaderBufferSize = 100000
 
 var ErrParentTerminatedConversation = errors.New("Connection terminated by parent process")

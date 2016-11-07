@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net"
 	"os"
 
@@ -11,8 +12,10 @@ import (
 )
 
 func main() {
+	fmt.Println("child started")
 	var socketPath string
 	flag.StringVar(&socketPath, "socket-path", "", "Path to unix socket")
+	flag.Parse()
 
 	var conn net.Conn
 	var err error
@@ -38,6 +41,8 @@ func handleConnection(conn net.Conn) (e error) {
 	if e = encoderConn.Read(&transferInfo); e != nil {
 		return
 	}
+
+	fmt.Printf("child read txfer %+v\n", transferInfo)
 
 	if transferInfo.FileTransferType == wire.FileSend {
 		f := newOsFile()

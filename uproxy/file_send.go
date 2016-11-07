@@ -41,7 +41,7 @@ func fileSend(conn unet.EncodeConn, txferInfo wire.FileTransferInformation, f fi
 		conn.Write(txferInfo)
 		return
 	}
-	file.Close()
+	defer file.Close()
 
 	var fileSize int64
 	if fileSize, e = f.getFileSize(); e != nil {

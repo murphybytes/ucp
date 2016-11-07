@@ -2,6 +2,8 @@ package server
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"io"
 )
@@ -51,4 +53,12 @@ func (s *ReadWriteJoiner) Write(b []byte) (n int, e error) {
 
 func (s *ReadWriteJoiner) Close() (e error) {
 	return
+}
+
+func GetUniqueUnixSocketFileName() string {
+	buffer := make([]byte, 24)
+	rand.Read(buffer)
+	name := base32.StdEncoding.EncodeToString(buffer)[:len(buffer)-1]
+	return fmt.Sprintf("/tmp/%s.sock", name)
+
 }
